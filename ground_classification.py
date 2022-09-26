@@ -10,6 +10,7 @@ import torch_geometric.transforms as T
 from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
 import json
+from sklearn.metrics import precision_recall_fscore_support
 
 from model.pointnet2 import PointNet2
 from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR
@@ -57,7 +58,7 @@ def train(loader, save_dir, epoch, save_every_epoch=10):
 
 @torch.no_grad()
 def evaluate(loader, epoch=0, path=None, val_mode=True, log_img_every=5):
-    accuracies = []
+    accuracies, precs0, precs1, recalls0, recalls1 = [], [], [], [], []
     if path:
         model.load_state_dict(torch.load(path)['model_state_dict'])
     model.eval()
@@ -72,14 +73,20 @@ def evaluate(loader, epoch=0, path=None, val_mode=True, log_img_every=5):
         losses.append(val_loss.item())
         # pred = np.argmax(out, axis=-1)
         acc = get_accuracy(out, target, data.num_nodes)
+        precision, recall, _, _ = precision_recall_fscore_support(y_true=target, y_pred=out.argmax(dim=1))
         wandb.log({"val_loss": val_loss.item(),
                    "val_acc": acc,
                    "val_iteration": step})
         print(f'[{i + 1}/{len(loader)}]'
               f'Eval Acc: {acc:.4f}')
         accuracies.append(acc)
+        precs0.append(precision[0])
+        precs1.append(precision[1])
+        recalls0.append(recall[0])
+        recalls1.append(recall[1])
 
-    return float(np.mean(accuracies)), np.mean(losses)
+    return float(np.mean(accuracies)), np.mean(losses), np.mean(precs0), np.mean(precs1), np.mean(recalls0), np.mean(
+        recalls1)
 
 
 if __name__ == '__main__':
@@ -121,7 +128,7 @@ if __name__ == '__main__':
 
     path = TRAIN_PATH
     all_files = sorted(glob(f"{path}*/static/*.ply"))
-    train_files, val_files, test_files = train_val_test_split(all_files, seed=config.seed)
+    train_files, test_files, val_files = train_val_test_split(all_files, seed=config.seed)
 
     transforms = []
     if params['rand_translate'] > 0:
@@ -148,7 +155,8 @@ if __name__ == '__main__':
                                          files=test_files, pre_transform=pre_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True,
                               num_workers=params['num_workers'])
-    val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, num_workers=params['num_workers'])
+    val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False,
+                            num_workers=params['num_workers'])
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False,
                              num_workers=params['num_workers'])
 
@@ -160,8 +168,8 @@ if __name__ == '__main__':
     model = PointNet2(config.num_classes)
     model = model.to(device)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
-    print(f"Number of parameters: {params}")
+    model_params = sum([np.prod(p.size()) for p in model_parameters])
+    print(f"Number of parameters: {model_params}")
     # print(model)
     wandb.watch(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -172,7 +180,8 @@ if __name__ == '__main__':
         save_dir = f'{ROOT_DIR}/runs/binary_{rand_num}'
         os.mkdir(save_dir)
         print(f'Save folder created: {os.path.isdir(save_dir)}')
-        # TODO add saving params in json
+        with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
+            json.dump(params, fp, indent=2)
 
     if config.train:
         print("RUNNING TRAINING...")
@@ -186,15 +195,16 @@ if __name__ == '__main__':
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             epoch_start = checkpoint['epoch'] + 1
             save_dir = os.path.dirname(config.resume_model_path)
-            with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
-                json.dump(params, fp)
+
+            # with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
+            #     json.dump(params, fp)
 
         print(f'Saving in: {save_dir}')
         scheduler = ExponentialLR(optimizer, config.lr_decay, verbose=config.verbose)
         for epoch in tqdm(range(epoch_start, config.epochs)):
             train_loss = train(train_loader, save_dir, epoch)
             if config.val:
-                mean_acc, val_loss = evaluate(val_loader, epoch=epoch)
+                mean_acc, val_loss, _, _, _, _ = evaluate(val_loader, epoch=epoch)
                 print(f'Epoch: {epoch:02d}, Acc: {mean_acc:.4f}')
 
     if config.test:
@@ -203,6 +213,6 @@ if __name__ == '__main__':
         mean_acc = evaluate(test_loader,
                             val_mode=False,
                             log_img_every=1,
-                            path="")
+                            path=config.resume_model_path)
 
         print(f'MEAN_ACCURACY: {mean_acc}')

@@ -24,23 +24,22 @@ COMMON_PARAMS = {
     'verbose': True,
     'resume_from': 0,
     'resume_from_id': 0,
-    'resume_model_path': ""
+    'resume_model_path': None # "C:/Users/Diana/PycharmProjects/pcdseg/runs/binary_294/epoch_280_model.pth"
 }
 
 MODEL_SPECIFIC_PARAMS = {
     'GroundDetection': {
-        'num_channels': 4,
         'lr': 0.01,
         'lr_decay': 0.99,  # every epoch
-        'batch_size': 2,
-        'num_epochs': 300,
-        'subsample_to': 100000,
+        'batch_size': 1,
+        'num_epochs': 200,
+        'subsample_to': 200000,
         'cut_in': 2,
         'num_classes': 2,
         'rand_translate': 0.01,
-        'rand_rotation_x': 15,
-        'rand_rotation_y': 15,
-        'rand_rotation_z': 15,
+        'rand_rotation_x': 0,
+        'rand_rotation_y': 0,
+        'rand_rotation_z': 0,
         'params_log_file': "params.json"
     },
     'SemSegmentation': {
