@@ -135,18 +135,9 @@ id2name         = {label.id       : label.name for label in labels}
 label_names = {label.name for label in labels}
 
 all_label_ids = [label.id for label in labels]
-ground_labels = ['ground', 'road', 'sidewalk', 'parking', 'rail track', 'terrain']
+# ground_labels = ['ground', 'road', 'sidewalk', 'parking', 'rail track', 'terrain']
+ground_labels = ['ground', 'road', 'sidewalk', 'parking', 'terrain']
 ground_label_ids = [labelname2labelid[name] for name in ground_labels]
-
-
-# category to list of label objects
-# category2labels = {}
-# for label in labels:
-#     category = label.category
-#     if category in category2labels:
-#         category2labels[category].append(label)
-#     else:
-#         category2labels[category] = [label]
 
 if __name__ == "__main__":
     files = glob("..../*.ply")

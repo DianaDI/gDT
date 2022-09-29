@@ -14,29 +14,11 @@ from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from data.KITTI360Dataset import KITTI360Dataset
 import json
-
-from data.kitti_helpers import all_label_ids, ground_label_ids
-from model.pointnet2 import PointNet2
-from sklearn.model_selection import train_test_split
-
-from collections import Counter
 import copy
 
-
-def most_frequent(arr):
-    occurence_count = Counter(arr)
-    return occurence_count.most_common(1)[0][0]
-
-
-def train_val_test_split(paths, test_size=0.1, seed=42, verbose=True):
-    train, test = train_test_split(paths, test_size=test_size, random_state=seed)
-    train, val = train_test_split(train, test_size=test_size, random_state=seed)
-    if verbose:
-        n = len(paths)
-        print(f"TRAIN SIZE: {len(train)} kitti files ({len(train) / n * 100}%)")
-        print(f"VAL SIZE: {len(val)} kitti files ({len(val) / n * 100}%)")
-        print(f"TEST SIZE: {len(test)} kitti files ({len(test) / n * 100}%)")
-    return train, test, val
+from data.kitti_helpers import ground_label_ids
+from data.utils import train_val_test_split, most_frequent
+from model.pointnet2 import PointNet2
 
 
 def remap_label_for_drawing(arr):
@@ -62,7 +44,7 @@ def get_normalised_weights():
     return class_weights_normalised
 
 
-def train(loader, save_dir, epoch, class_weights_normalised=None, save_every_epoch=5, log_every_iter=10):
+def train(loader, save_dir, epoch, class_weights_normalised=None, save_every_epoch=5, log_every_iter=1):
     model.train()
     total_loss = correct_nodes = total_nodes = 0
     losses = []
@@ -72,22 +54,22 @@ def train(loader, save_dir, epoch, class_weights_normalised=None, save_every_epo
         optimizer.zero_grad()
         out = model(data)
         target = torch.squeeze(data.y).type(torch.LongTensor).to(device)
-        loss = F.nll_loss(out, target, weight=class_weights_normalised.to(device))
+        loss = F.nll_loss(out, target)  # , weight=class_weights_normalised.to(device))
         # loss = F.nll_loss(out, target)
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-        #scheduler.step()
-        wandb.log({"loss": loss.item()})
+        # scheduler.step()
         correct_nodes += out.argmax(dim=1).eq(target).sum().item()
         total_nodes += data.num_nodes
 
         if (i + 1) % log_every_iter == 0:
             train_acc = correct_nodes / total_nodes
-            avg_loss = total_loss / 10
+            avg_loss = total_loss / log_every_iter
             print(f'[{i + 1}/{len(loader)}] Loss: {avg_loss:.4f} '
                   f'Train Acc: {train_acc:.4f}')
-            wandb.log({'accuracy': train_acc})
+            wandb.log({'train_accuracy': train_acc,
+                       "train_loss": loss.item()})
             losses.append(total_loss)
             total_loss = correct_nodes = total_nodes = 0
     if (epoch + 1) % save_every_epoch == 0:
@@ -135,7 +117,7 @@ def evaluate(loader, path=None, val_mode=True, log_img_every=5):
         correct_nodes += out.argmax(dim=1).eq(target).sum().item()
         total_nodes += data.num_nodes
 
-        #if (i + 1) % 10 == 0:
+        # if (i + 1) % 10 == 0:
         acc = correct_nodes / total_nodes
         print(f'[{i + 1}/{len(loader)}]'
               f'Eval Acc: {acc:.4f}')
@@ -154,7 +136,8 @@ def evaluate(loader, path=None, val_mode=True, log_img_every=5):
                 pred_filtered = pred[cond]
                 # target_filtered = target[cond]
                 print('Clustering...')
-                cluster_labels = cluster(xyz_filtered.cpu(), eps=0.03, min_points=5)  # not bad with 0,03 -> for pole +2%
+                cluster_labels = cluster(xyz_filtered.cpu(), eps=0.03,
+                                         min_points=5)  # not bad with 0,03 -> for pole +2%
 
                 # iterate through clusters
                 cluster_labels_unique = np.unique(cluster_labels)
@@ -182,11 +165,11 @@ def evaluate(loader, path=None, val_mode=True, log_img_every=5):
                         iou_classwise_new2[label] = [val]
 
                 j1 = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check,
-                                                  average='weighted')
+                                   average='weighted')
                 ious_weighted1.append(j1)
 
                 j2 = jaccard_score(y_true=target, y_pred=new_pred, labels=labels_to_check,
-                                                  average='weighted')
+                                   average='weighted')
                 ious_weighted2.append(j2)
 
             if config.verbose and (i + 1) % log_img_every == 0:
@@ -195,7 +178,7 @@ def evaluate(loader, path=None, val_mode=True, log_img_every=5):
                 wandb.log(
                     {
                         'eval_inputs': wandb.Object3D(
-                        np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
+                            np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
                         'eval_targets': wandb.Object3D(
                             np.column_stack((np.array(data.pos.cpu()), target_remapped))),
                         'eval_predictions': wandb.Object3D(
@@ -222,7 +205,7 @@ def evaluate(loader, path=None, val_mode=True, log_img_every=5):
         #     print(f'{key}: {np.mean(value)}')
         # print("------")
 
-    return float(np.mean(ious_micro)),  float(np.mean(ious_macro)), float(np.mean(ious_weighted)),  \
+    return float(np.mean(ious_micro)), float(np.mean(ious_macro)), float(np.mean(ious_weighted)), \
            float(np.mean(accuracies)), \
            iou_classwise, iou_classwise_new2
 
@@ -233,26 +216,26 @@ if __name__ == '__main__':
         class_weights_dict_original = json.load(read_content)
     mode_class_nums = {0: 37,
                        1: len(ground_label_ids) + 1,
-                       2: 32}  # s.non_ground_ids # len(all_label_ids) - len(ground_label_ids) + 1}
+                       2: 33}  # s.non_ground_ids # len(all_label_ids) - len(ground_label_ids) + 1}
 
     wandb.finish()
     wandb.init(project="pointnet++")
     config = wandb.config
-    config.learning_rate = 0.0001
-    config.epochs = 500
-    config.cut_in = 3
+    config.learning_rate = 0.009
+    config.epochs = 200
+    config.cut_in = 4
     config.subsample_to = 50000
-    config.mode = 0  # 0 - all, 1 - ground, 2 - non-ground
+    config.mode = 2  # 0 - all, 1 - ground, 2 - non-ground
     config.scheduler_par = 1000
     config.seed = 402
     config.num_classes = mode_class_nums[config.mode]
     config.verbose = True
     config.resume_from = 0
     config.resume_from_rand_id = 0
-    config.resume_model_path = None # f'{ROOT_DIR}/runs/mode_{config.mode}_{config.resume_from_rand_id}/epoch_mode_{config.mode}_{config.resume_from}_model.pth'
-    config.test = True
-    config.train = False
-    config.val = False
+    config.resume_model_path = None  # f'{ROOT_DIR}/runs/mode_{config.mode}_{config.resume_from_rand_id}/epoch_mode_{config.mode}_{config.resume_from}_model.pth'
+    config.test = False
+    config.train = True
+    config.val = True
     config.eval_clustering = True
     config.batch_size = 1 if config.test else 3
 
@@ -261,7 +244,7 @@ if __name__ == '__main__':
     train_path = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
 
     all_files = sorted(glob(f"{train_path}*/static/*.ply"))
-    train_files, val_files, test_files = train_val_test_split(all_files, seed=config.seed)
+    train_files, test_files, val_files = train_val_test_split(all_files, seed=config.seed)  # train, test, val
 
     transform = T.Compose([
         T.RandomTranslate(0.01),
@@ -272,7 +255,8 @@ if __name__ == '__main__':
     pre_transform = T.Compose([T.FixedPoints(config.subsample_to, replace=False),
                                T.NormalizeScale()])
 
-    train_dataset = KITTI360Dataset(train_path, split="train", num_classes=config.num_classes, mode=config.mode, cut_in=config.cut_in,
+    train_dataset = KITTI360Dataset(train_path, split="train", num_classes=config.num_classes, mode=config.mode,
+                                    cut_in=config.cut_in,
                                     files=train_files, transform=transform, pre_transform=pre_transform)
     val_dataset = KITTI360Dataset(train_path, num_classes=config.num_classes, split="val", mode=config.mode,
                                   cut_in=config.cut_in,
@@ -318,24 +302,22 @@ if __name__ == '__main__':
             save_dir = os.path.dirname(config.resume_model_path)
 
         print(f'Saving in: {save_dir}')
-        #scheduler = CosineAnnealingLR(optimizer, config.scheduler_par)
+        # scheduler = CosineAnnealingLR(optimizer, config.scheduler_par)
         loss_weights = get_normalised_weights()
         for epoch in tqdm(range(epoch_start, config.epochs)):
             loss = train(train_loader, save_dir, epoch, class_weights_normalised=loss_weights)
             if config.val:
-                miou_micro, miou_macro, miou_weighted, mean_acc, classwise_iou = evaluate(val_loader)
+                miou_micro, miou_macro, miou_weighted, mean_acc, classwise_iou, _ = evaluate(val_loader)
                 print(f'Epoch: {epoch:02d}, Val IoU (w): {miou_weighted:.4f}')
 
     if config.test:
         print("RUNNING TEST...")
         model = model.to(device)
         miou_micro, miou_macro, miou_weighted, mean_acc, classwise_iou, iou_classwise_new2 = evaluate(test_loader,
-                                                                                  val_mode=False,
-                                                                                  log_img_every=1,
-                                                                                  path=f'{ROOT_DIR}/runs/mode_{config.mode}_964/epoch_mode_{config.mode}_600_model.pth')
-        # 0 - 833 - 600 epochs trained
-        # 1
-        # 2 - 964 - 600 epochs
+                                                                                                      val_mode=False,
+                                                                                                      log_img_every=1,
+                                                                                                      path=f'{ROOT_DIR}/runs/mode_{config.mode}_964/epoch_mode_{config.mode}_600_model.pth')
+
         print(f'MODE {config.mode}')
         print(f'MIOU_MICRO: {miou_micro}')
         print(f'MIOU_MACRO: {miou_macro}')

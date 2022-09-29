@@ -34,7 +34,7 @@ class KITTI360Dataset(Dataset):
         self.root = root
         self.mode = mode
         self.num_classes = num_classes
-        self.ground_points_root = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train_processed/inliers_traj"
+        self.ground_points_root = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train_processed/inliers_traj_0.6"
         self.class_weights_dict = None
         with open("./class_label_counts.json", "r") as read_content:
             self.class_weights_dict_original = json.load(read_content)
@@ -131,7 +131,7 @@ class KITTI360Dataset(Dataset):
             for part in splits:
                 cut_volumes.append(len(part))
                 XYZ = part[:, :3]
-                RGB = part[:, 3:6]
+                RGB = part[:, 3:6] / 255
                 label = part[:, -1]
 
                 data = Data(pos=torch.from_numpy(XYZ), x=torch.from_numpy(RGB), y=torch.from_numpy(label))

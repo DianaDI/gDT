@@ -68,7 +68,7 @@ class KITTI360DatasetBinary(Dataset):
             for part in splits:
                 cut_volumes.append(len(part))
                 XYZ = part[:, :3]
-                RGB = part[:, 3:6]
+                RGB = part[:, 3:6] / 255
                 label = part[:, -1]
 
                 data = Data(pos=torch.from_numpy(XYZ), x=torch.from_numpy(RGB), y=torch.from_numpy(label))

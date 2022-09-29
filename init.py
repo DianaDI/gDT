@@ -1,5 +1,7 @@
 import os
 
+from data.kitti_helpers import ground_label_ids
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 TRAIN_PATH = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
 
@@ -24,17 +26,21 @@ COMMON_PARAMS = {
     'verbose': True,
     'resume_from': 0,
     'resume_from_id': 0,
-    'resume_model_path': None # "C:/Users/Diana/PycharmProjects/pcdseg/runs/binary_294/epoch_280_model.pth"
+    'resume_model_path': None  # "C:/Users/Diana/PycharmProjects/pcdseg/runs/binary_294/epoch_280_model.pth"
 }
+
+separated_mode_class_nums = {0: 37,
+                             1: len(ground_label_ids) + 1,
+                             2: 33}
 
 MODEL_SPECIFIC_PARAMS = {
     'GroundDetection': {
-        'lr': 0.01,
+        'lr': 0.001,
         'lr_decay': 0.99,  # every epoch
-        'batch_size': 1,
+        'batch_size': 4,
         'num_epochs': 200,
-        'subsample_to': 200000,
-        'cut_in': 2,
+        'subsample_to': 50000,
+        'cut_in': 4,
         'num_classes': 2,
         'rand_translate': 0.01,
         'rand_rotation_x': 0,
@@ -43,7 +49,19 @@ MODEL_SPECIFIC_PARAMS = {
         'params_log_file': "params.json"
     },
     'SemSegmentation': {
-        'lr': 0.0001,
-        'mode': 0  # 1, 2
+        'lr': 0.003,
+        'lr_decay': 0.99,
+        'mode': 2,  # 1, 2
+        'num_classes': 33,
+        'batch_size': 3,
+        'num_epochs': 200,
+        'subsample_to': 50000,
+        'cut_in': 4,
+        'rand_translate': 0.01,
+        'rand_rotation_x': 15,
+        'rand_rotation_y': 15,
+        'rand_rotation_z': 15,
+        'params_log_file': "params.json",
+        'eval_clustering': True
     }
 }
