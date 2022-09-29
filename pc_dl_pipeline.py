@@ -52,6 +52,7 @@ if __name__ == '__main__':
     config.val = params['train']
     config.batch_size = params['batch_size']
     config.lr_decay = params['lr_decay']
+    config.lr_cosine_step = params['lr_cosine_step']
     config.params_log_file = params['params_log_file']
 
     torch.manual_seed(config.seed)
@@ -102,6 +103,8 @@ if __name__ == '__main__':
     print(f"Number of parameters: {model_params}")
     # print(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    scheduler = CosineAnnealingLR(optimizer, config.lr_cosine_step)
+    # ExponentialLR(optimizer, config.lr_decay, verbose=config.verbose)
 
     save_dir = None
     if config.resume_from == 0 and not config.test:
@@ -112,7 +115,7 @@ if __name__ == '__main__':
         with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 
-    dl_task = SegmentationTask(name=task_name, device=device, model=model,
+    dl_task = SegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler,
                                model_save_dir=save_dir, optimizer=optimizer, config=config)
     wandb.watch(dl_task.model)
 
@@ -132,7 +135,6 @@ if __name__ == '__main__':
             dl_task.model_save_dir = save_dir
 
         print(f'Saving in: {save_dir}')
-        scheduler = ExponentialLR(optimizer, config.lr_decay, verbose=config.verbose)
         for epoch in tqdm(range(epoch_start, config.epochs)):
             train_loss = dl_task.train(loader=train_loader, epoch=epoch)
             if config.val:

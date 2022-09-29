@@ -37,6 +37,7 @@ MODEL_SPECIFIC_PARAMS = {
     'GroundDetection': {
         'lr': 0.001,
         'lr_decay': 0.99,  # every epoch
+        'lr_cosine_step': None,
         'batch_size': 4,
         'num_epochs': 200,
         'subsample_to': 50000,
@@ -51,6 +52,7 @@ MODEL_SPECIFIC_PARAMS = {
     'SemSegmentation': {
         'lr': 0.003,
         'lr_decay': 0.99,
+        'lr_cosine_step': 1000,
         'mode': 2,  # 1, 2
         'num_classes': 33,
         'batch_size': 3,

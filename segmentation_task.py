@@ -24,7 +24,8 @@ class SegmentationTask(DLTask):
             loss = F.nll_loss(out, target)  # , weight=class_weights_normalised.to(device))
             loss.backward()
             self.optimizer.step()
-            # scheduler.step()
+            if self.scheduler:
+                self.scheduler.step()
             accuracy = self.get_accuracy(out, target)
             wandb.log({"train_loss": loss.item(),
                        "train_acc": accuracy,
