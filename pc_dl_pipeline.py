@@ -9,6 +9,8 @@ import torch_geometric.transforms as T
 from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
 import json
+from torchgeometry.losses import FocalLoss
+from torchvision.transforms import Normalize
 
 from model.pointnet2 import PointNet2
 from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR
@@ -16,6 +18,7 @@ from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset
 from data.utils import train_val_test_split
 from segmentation_task import SegmentationTask
+from data.transforms import NormalizeFeatureToMeanStd
 
 if __name__ == '__main__':
     task_name = 'SemSegmentation'  # 'GroundDetection'
@@ -54,6 +57,13 @@ if __name__ == '__main__':
     config.lr_decay = params['lr_decay']
     config.lr_cosine_step = params['lr_cosine_step']
     config.params_log_file = params['params_log_file']
+    config.batch_norm = params['batch_norm']
+    config.loss_fn = params['loss_fn']
+
+    if task_name == 'SemSegmentation':
+        config.eval_clustering = params['eval_clustering']
+        config.clustering_eps = params['clustering_eps']
+        config.clustering_min_points = params['clustering_min_points']
 
     torch.manual_seed(config.seed)
     torch.cuda.manual_seed(config.seed)
@@ -64,7 +74,7 @@ if __name__ == '__main__':
 
     transforms = []
     if params['rand_translate'] > 0:
-        transforms.append(T.RandomTranslate(params['rand_translate']))
+        transforms.append(T.RandomJitter(params['rand_translate']))
     if params['rand_rotation_x'] > 0:
         transforms.append(T.RandomRotate(params['rand_rotation_x'], axis=0))
     if params['rand_rotation_y'] > 0:
@@ -74,7 +84,8 @@ if __name__ == '__main__':
 
     transform = T.Compose(transforms)
     pre_transform = T.Compose([T.FixedPoints(config.subsample_to, replace=False),
-                               T.NormalizeScale()])
+                               T.NormalizeScale(),
+                               NormalizeFeatureToMeanStd()])
 
     train_dataset = DatasetClass(path, split="train", num_classes=config.num_classes, mode=config.mode,
                                  cut_in=config.cut_in,
@@ -97,15 +108,18 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_name(0))
 
     device = torch.device('cuda' if cuda_available else 'cpu')
-    model = PointNet2(config.num_classes)
+    model = PointNet2(config.num_classes, batch_norm=config.batch_norm)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     model_params = sum([np.prod(p.size()) for p in model_parameters])
     print(f"Number of parameters: {model_params}")
     # print(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    scheduler = CosineAnnealingLR(optimizer, config.lr_cosine_step)
+    scheduler = CosineAnnealingLR(optimizer,
+                                  config.lr_cosine_step) if config.lr_cosine_step > 0 else None
     # ExponentialLR(optimizer, config.lr_decay, verbose=config.verbose)
 
+    loss_fn = FocalLoss(alpha=0.5, gamma=2.0,
+                        reduction='mean') if config.loss_fn == 'focal' else None  # default nll defined inside methods
     save_dir = None
     if config.resume_from == 0 and not config.test:
         rand_num = random.randint(0, 1000)
@@ -136,14 +150,15 @@ if __name__ == '__main__':
 
         print(f'Saving in: {save_dir}')
         for epoch in tqdm(range(epoch_start, config.epochs)):
-            train_loss = dl_task.train(loader=train_loader, epoch=epoch)
+            train_loss = dl_task.train(loader=train_loader, loss_fn=loss_fn, epoch=epoch, save_model_every_epoch=10)
             if config.val:
-                metrics_dict, _ = dl_task.eval(loader=val_loader, epoch=epoch)
+                metrics_dict, _ = dl_task.eval(loader=val_loader, loss_fn=loss_fn, epoch=epoch)
                 print(f'Epoch: {epoch:02d}, Mean acc: {np.mean(metrics_dict["accuracy"]):.4f}')
 
     if config.test:
         print("RUNNING TEST...")
-        model = model.to(device)
-        metrics_dict, extra_metrics = dl_task.eval(loader=test_loader, load_from_path=config.resume_model_path,
+        metrics_dict, extra_metrics = dl_task.eval(loader=test_loader, loss_fn=loss_fn,
+                                                   load_from_path=config.resume_model_path,
                                                    mode='eval')
         print(f'MEAN_ACCURACY: {np.mean(metrics_dict["accuracy"])}')
+        dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False)

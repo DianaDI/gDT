@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 class DLTask:
@@ -12,15 +13,35 @@ class DLTask:
         self.scheduler = scheduler
         self.config = config
 
-    def train(self, loader, epoch, save_model_every_epoch=5):
+    def train(self, loader, epoch, loss_fn=None, save_model_every_epoch=5):
         # implement in child
         return None
 
     @torch.no_grad()
-    def eval(self, loader, load_from_path=None, mode='val', epoch=0):
+    def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0):
         # implement in child
         return None
 
     def get_accuracy(self, out, target):
         correct_nodes = out.argmax(dim=1).eq(target).sum().item()
         return correct_nodes / len(target)
+
+    def print_res(self, res_dict, title, classwise=True, print_overall_mean=True, mean_over_nonzero=True):
+        print(title)
+        # print('Printing only non-zero values')
+        avgs = []
+        for key, value in res_dict.items():
+            avg = 0
+            if len(value) > 0:
+                if mean_over_nonzero:
+                    non_zeros = np.nonzero(value)
+                    if len(non_zeros[0]) > 0:
+                        avg = np.mean(np.array(value)[non_zeros])
+                        avgs.append(avg)
+                else:
+                    avg = np.mean(value)
+                    avgs.append(avg)
+                if avg > 0 and classwise:
+                    print(f'{key}: {avg}')
+                        # print(value)
+        if print_overall_mean: print(f'mIoU over all: {np.mean(avgs)}')

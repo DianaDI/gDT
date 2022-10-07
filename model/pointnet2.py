@@ -18,7 +18,7 @@ class FPModule(torch.nn.Module):
 
 
 class PointNet2(torch.nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, batch_norm=True):
         super().__init__()
 
         # Input channels account for both `pos` and node features.

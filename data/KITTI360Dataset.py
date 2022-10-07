@@ -97,7 +97,7 @@ class KITTI360Dataset(Dataset):
                     main_arr[i][-1] = other_label
         if save_label_map:
             with open(file_path_to_save, 'w') as fp:
-                json.dump(res_mapping, fp)
+                json.dump(res_mapping, fp, indent=2)
         return main_arr
 
     def process(self):
@@ -107,7 +107,6 @@ class KITTI360Dataset(Dataset):
             XYZ, RGB, label = read_fields(raw_path)
             all = np.column_stack((XYZ, RGB, label))
 
-            remap = None
             if self.mode == 0:
                 all = self.map_labels(all, self.mapping_labels_ids, id2name, self.mode, True,
                                           file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
@@ -131,7 +130,7 @@ class KITTI360Dataset(Dataset):
             for part in splits:
                 cut_volumes.append(len(part))
                 XYZ = part[:, :3]
-                RGB = part[:, 3:6] / 255
+                RGB = part[:, 3:6]
                 label = part[:, -1]
 
                 data = Data(pos=torch.from_numpy(XYZ), x=torch.from_numpy(RGB), y=torch.from_numpy(label))

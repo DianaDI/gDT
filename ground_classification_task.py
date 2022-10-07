@@ -79,4 +79,4 @@ class GroundClassificationTask(DLTask):
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {metrics_dict["accuracy"][0]:.4f}')
 
-        return metrics_dict_all
+        return metrics_dict_all, None
