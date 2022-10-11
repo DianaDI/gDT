@@ -101,6 +101,13 @@ class SegmentationTask(DLTask):
 
         o3d.visualization.draw_geometries([pcd])
 
+    def remap_label_for_drawing(self, arr):
+        arr = np.array(arr)
+        unique_labels = np.unique(arr)
+        label_dict = {unique_labels[j]: j for j in range(len(unique_labels))}
+        arr = [label_dict[k] for k in arr]
+        return arr
+
     def cluster(self, batch_data, out, target):
         xyz = batch_data.pos
         rgb = batch_data.x
@@ -153,8 +160,9 @@ class SegmentationTask(DLTask):
             out = self.model(data)
             out = out.cpu()
             target = torch.squeeze(data.y).type(torch.LongTensor).cpu()
+            pred = np.argmax(out, axis=-1)
 
-            metrics_dict, iou_classwise = self.compute_metrics(target=target, out=out, pred=np.argmax(out, axis=-1),
+            metrics_dict, iou_classwise = self.compute_metrics(target=target, out=out, pred=pred,
                                                                loss_fn=loss_fn, mode=mode)
             metrics_dict_all = {key: metrics_dict.get(key, []) + metrics_dict_all.get(key, [])
                                 for key in set(list(metrics_dict.keys()) + list(metrics_dict_all.keys()))}
@@ -166,37 +174,42 @@ class SegmentationTask(DLTask):
             loss = metrics_dict['loss'][0]
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {accuracy:.4f}')
-            wandb.log({"val_loss": loss,
-                       "val_acc": accuracy,
-                       "val_iteration": step})
 
-            if mode != 'val' and self.config.eval_clustering:
-                print('Clustering is being done..')
-                metrics_dict, iou_classwise = self.cluster(batch_data=data, out=out, target=target)
-                metrics_dict_all_post = {key: metrics_dict.get(key, []) + metrics_dict_all_post.get(key, [])
-                                         for key in
-                                         set(list(metrics_dict.keys()) + list(metrics_dict_all_post.keys()))}
-                iou_classwise_all_post = {key: iou_classwise.get(key, []) + iou_classwise_all_post.get(key, [])
-                                          for key in
-                                          set(list(iou_classwise.keys()) + list(iou_classwise_all_post.keys()))}
+            if mode != 'val':
+                if self.config.eval_clustering:
+                    print('Clustering is being done..')
+                    metrics_dict, iou_classwise = self.cluster(batch_data=data, out=out, target=target)
+                    metrics_dict_all_post = {key: metrics_dict.get(key, []) + metrics_dict_all_post.get(key, [])
+                                             for key in
+                                             set(list(metrics_dict.keys()) + list(metrics_dict_all_post.keys()))}
+                    iou_classwise_all_post = {key: iou_classwise.get(key, []) + iou_classwise_all_post.get(key, [])
+                                              for key in
+                                              set(list(iou_classwise.keys()) + list(iou_classwise_all_post.keys()))}
                 # self.print_res(iou_classwise_all_post, "After clustering:", False)
 
-            # # if config.verbose and (i + 1) % log_img_every == 0:
-            # #     pred_remapped = remap_label_for_drawing(pred)
-            # #     target_remapped = remap_label_for_drawing(data.y.cpu())
-            #     wandb.log(
-            #         {
-            #             # 'eval_inputs': wandb.Object3D(
-            #             #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
-            #             # 'eval_targets': wandb.Object3D(
-            #             #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
-            #             # 'eval_predictions': wandb.Object3D(
-            #             #     np.column_stack((np.array(data.pos.cpu()), pred_remapped))),
-            #             # 'clusters': wandb.Object3D(
-            #             #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
-            #             # 'eval_accuracy': acc,
-            #             # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
-            #         })
+            # if config.verbose and (i + 1) % log_img_every == 0:
+                pred_remapped = self.remap_label_for_drawing(pred)
+            #     target_remapped = remap_label_for_drawing(data.y.cpu())
+                wandb.log(
+                    {
+                        "val_loss": loss,
+                        "val_acc": accuracy,
+                        "val_iteration": step,
+                        'eval_inputs': wandb.Object3D(
+                            np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
+                        # 'eval_targets': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
+                        'eval_predictions': wandb.Object3D(
+                            np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
+                        # 'clusters': wandb.Object3D(
+                        #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
+                        # 'eval_accuracy': acc,
+                        # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
+                    })
+            else:
+                wandb.log({"val_loss": loss,
+                           "val_acc": accuracy,
+                           "val_iteration": step})
 
         if mode != 'val' and self.config.eval_clustering:
             self.print_res(iou_classwise_all, 'Before clustering:')

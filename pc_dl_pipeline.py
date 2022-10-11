@@ -124,8 +124,12 @@ if __name__ == '__main__':
     if config.resume_from == 0 and not config.test:
         rand_num = random.randint(0, 1000)
         save_dir = f'{ROOT_DIR}/runs/{task_name}_{rand_num}'
-        os.mkdir(save_dir)
-        print(f'Save folder created: {os.path.isdir(save_dir)}')
+        dir_exist = False
+        while not dir_exist:
+            if not os.path.isdir(save_dir):
+                os.mkdir(save_dir)
+                dir_exist = os.path.isdir(save_dir)
+                print(f'Save folder created: {dir_exist}')
         with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 

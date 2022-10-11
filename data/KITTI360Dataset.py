@@ -133,6 +133,7 @@ class KITTI360Dataset(Dataset):
                 RGB = part[:, 3:6]
                 label = part[:, -1]
 
+
                 data = Data(pos=torch.from_numpy(XYZ), x=torch.from_numpy(RGB), y=torch.from_numpy(label))
 
                 if self.pre_filter is not None and not self.pre_filter(data):
@@ -140,6 +141,16 @@ class KITTI360Dataset(Dataset):
 
                 if self.pre_transform is not None:
                     data = self.pre_transform(data)
+
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(data.x)
+
+                o3d.geometry.PointCloud.estimate_normals(
+                    pcd,
+                    search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1,
+                                                                      max_nn=30))
+
+                data.x = torch.from_numpy(np.column_stack((data.x, np.array(pcd.normals))))
 
                 torch.save(data, osp.join(self.processed_dir, f'{self.split}_data_{idx}.pt'))
                 idx += 1

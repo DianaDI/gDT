@@ -25,8 +25,10 @@ COMMON_PARAMS = {
     'save_every': 10,
     'verbose': True,
     'resume_from': 0,
-    'resume_from_id': 234,
-    'resume_model_path': "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
+    'resume_from_id': 119,
+    'resume_model_path': "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_119/epoch_mode_1_170_model.pth"
+
+    # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
 }
 
 separated_mode_class_nums = {0: 37,
@@ -38,10 +40,10 @@ MODEL_SPECIFIC_PARAMS = {
         'lr': 0.001,
         'lr_decay': 0.99,  # every epoch
         'lr_cosine_step': None,
-        'batch_size': 4,
+        'batch_size': 3,
         'num_epochs': 200,
-        'subsample_to': 50000,
-        'cut_in': 4,
+        'subsample_to': 70000,
+        'cut_in': 2,
         'num_classes': 2,
         'rand_translate': 0.01,
         'rand_rotation_x': 0,
@@ -55,8 +57,8 @@ MODEL_SPECIFIC_PARAMS = {
         'lr': 0.001,
         'lr_decay': 0,
         'lr_cosine_step': 0,
-        'mode': 0,  # 1, 2, 0
-        'num_classes': separated_mode_class_nums[0],
+        'mode': 2,  # 1, 2, 0
+        'num_classes': separated_mode_class_nums[2],
         'batch_size': 1 if COMMON_PARAMS['test'] else 3,
         'num_epochs': 200,
         'subsample_to': 50000,
@@ -66,10 +68,10 @@ MODEL_SPECIFIC_PARAMS = {
         'rand_rotation_y': 0,
         'rand_rotation_z': 0,
         'params_log_file': "params.json",
-        'eval_clustering': True,
+        'eval_clustering': False,
         'batch_norm': True,
         'loss_fn': 'focal',  # options: nll, focal
-        'clustering_eps': 0.014,
-        'clustering_min_points': 4
+        'clustering_eps': 0.005,  # 0.014, for mode 2
+        'clustering_min_points': 30  # 4 for mode 2
     }
 }
