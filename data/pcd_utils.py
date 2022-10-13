@@ -1,5 +1,4 @@
 import glob
-
 import numpy as np
 from plyfile import PlyData
 import open3d as o3d

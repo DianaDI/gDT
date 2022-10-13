@@ -1,17 +1,12 @@
 import os
+import random
 
 from data.kitti_helpers import ground_label_ids
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 TRAIN_PATH = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
 
-# train_files = open(f"{TRAIN_PATH}2013_05_28_drive_train.txt", "r").read().splitlines()
-# val_files = open(f"{TRAIN_PATH}2013_05_28_drive_val.txt", "r").read().splitlines()
-
-# root = "C:/Users/Diana/Desktop/DATA/Kitti360/"
-# train_files = [root + i for i in train_files]
-# val_files = [root + i for i in val_files]
-
+random_id = random.randint(0, 1000)
 
 COMMON_PARAMS = {
     'train': True,
@@ -22,12 +17,15 @@ COMMON_PARAMS = {
     'num_workers': 7,  # set number of cpu cores for data processing
     'plot_sample': True,
     'test_size': 0.1,
-    'save_every': 10,
+    'save_every': 5,
     'verbose': True,
+    'normals': True,
+    'eigenvalues': False,
+    'random_id': random_id,
     'resume_from': 0,
-    'resume_from_id': 119,
-    'resume_model_path': "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_119/epoch_mode_1_170_model.pth"
-
+    'resume_from_id': 552,
+    'resume_model_path': None
+    # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_552/epoch_mode_1_50_model.pth"
     # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
 }
 
@@ -56,9 +54,9 @@ MODEL_SPECIFIC_PARAMS = {
     'SemSegmentation': {
         'lr': 0.001,
         'lr_decay': 0,
-        'lr_cosine_step': 0,
-        'mode': 2,  # 1, 2, 0
-        'num_classes': separated_mode_class_nums[2],
+        'lr_cosine_step': 10,
+        'mode': 1,  # 1, 2, 0
+        'num_classes': separated_mode_class_nums[1],
         'batch_size': 1 if COMMON_PARAMS['test'] else 3,
         'num_epochs': 200,
         'subsample_to': 50000,

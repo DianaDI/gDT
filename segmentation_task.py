@@ -195,8 +195,8 @@ class SegmentationTask(DLTask):
                         "val_loss": loss,
                         "val_acc": accuracy,
                         "val_iteration": step,
-                        'eval_inputs': wandb.Object3D(
-                            np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
+                        # 'eval_inputs': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
                         # 'eval_targets': wandb.Object3D(
                         #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
                         'eval_predictions': wandb.Object3D(

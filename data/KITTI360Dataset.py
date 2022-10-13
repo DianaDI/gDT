@@ -1,22 +1,20 @@
 import os.path as osp
 from glob import glob
-
 import numpy as np
 import torch
 from torch_geometric.data import Data, Dataset
-from plyfile import PlyData
 from os.path import basename
 from tqdm import tqdm
-import open3d as o3d
 import json
 
 from data.kitti_helpers import label_names, id2name, ground_label_ids, all_label_ids
 from data.pcd_utils import read_fields, cut_boxes
+from data.utils import compute_normals, compute_eigenv
 
 
 class KITTI360Dataset(Dataset):
     def __init__(self, root, files, num_classes, mode=0, split="train", cut_in=2, transform=None, pre_transform=None,
-                 pre_filter=None):
+                 pre_filter=None, normals=False, eigenvalues=False):
         """
 
         :param root:
@@ -30,6 +28,8 @@ class KITTI360Dataset(Dataset):
         """
         self.cut_in = cut_in
         self.split = split
+        self.normals = normals
+        self.eigenvalues = eigenvalues
         self.files = files
         self.root = root
         self.mode = mode
@@ -38,16 +38,19 @@ class KITTI360Dataset(Dataset):
         self.class_weights_dict = None
         with open("./class_label_counts.json", "r") as read_content:
             self.class_weights_dict_original = json.load(read_content)
-            self.class_weights_dict_original = dict([(int(k), self.class_weights_dict_original[k]) for k in self.class_weights_dict_original])
+            self.class_weights_dict_original = dict(
+                [(int(k), self.class_weights_dict_original[k]) for k in self.class_weights_dict_original])
 
-        self.non_ground_ids = list(set(all_label_ids).intersection(list(self.class_weights_dict_original)) - set(ground_label_ids))
+        self.non_ground_ids = list(
+            set(all_label_ids).intersection(list(self.class_weights_dict_original)) - set(ground_label_ids))
         if self.mode == 2:
             self.mapping_labels_ids = self.non_ground_ids
         elif self.mode == 1:
             self.mapping_labels_ids = ground_label_ids
         elif self.mode == 0:
             self.mapping_labels_ids = sorted(list(self.class_weights_dict_original.keys()))
-        self.res_mapping, self.label_mapping, other_label = self.get_new_mapping(self.mapping_labels_ids, id2name, self.mode)
+        self.res_mapping, self.label_mapping, other_label = self.get_new_mapping(self.mapping_labels_ids, id2name,
+                                                                                 self.mode)
         new_class_weights_dict = dict()
         for label in self.label_mapping:
             new_class_weights_dict[self.label_mapping[label]] = self.class_weights_dict_original[label]
@@ -78,7 +81,7 @@ class KITTI360Dataset(Dataset):
         res_mapping = {}
         label_mapping = dict(zip(label_ids, range(0, len(label_ids))))
         for key, val in label_mapping.items():
-            res_mapping[val] = id_name_dict[key]   # 1: "name"
+            res_mapping[val] = id_name_dict[key]  # 1: "name"
         # all other classes are mapped to one label
 
         other_label = len(label_ids)
@@ -86,7 +89,8 @@ class KITTI360Dataset(Dataset):
             res_mapping[other_label] = "other"
         return res_mapping, label_mapping, other_label
 
-    def map_labels(self, main_arr, label_ids, id_name_dict, mode, save_label_map=False, file_path_to_save="./mapping.json"):
+    def map_labels(self, main_arr, label_ids, id_name_dict, mode, save_label_map=False,
+                   file_path_to_save="./mapping.json"):
         res_mapping, label_mapping, other_label = self.get_new_mapping(label_ids, id_name_dict, mode)
         res_mapping, label_mapping = self.res_mapping, self.label_mapping
         for i in range(len(main_arr)):
@@ -100,30 +104,34 @@ class KITTI360Dataset(Dataset):
                 json.dump(res_mapping, fp, indent=2)
         return main_arr
 
+    def pre_process(self, mode, data, path):
+        res = None
+        if mode == 0:
+            res = self.map_labels(data, self.mapping_labels_ids, id2name, self.mode, True,
+                                  file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
+        if mode == 1:
+            # filter out ground points
+            ground_points = np.load(f'{self.ground_points_root}/{basename(path).split(".")[0]}.pkl',
+                                    allow_pickle=True)
+            res = data[ground_points]
+            res = self.map_labels(res, ground_label_ids, id2name, self.mode, True,
+                                  file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
+        elif mode == 2:
+            # filter out non-ground points
+            ground_points = np.load(f'{self.ground_points_root}/{basename(path).split(".")[0]}.pkl',
+                                    allow_pickle=True)
+            res = data[list(set(range(len(res))) - set(ground_points))]
+            res = self.map_labels(res, self.non_ground_ids, id2name, self.mode, True,
+                                  file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
+        return res
+
     def process(self):
         idx = 0
         cut_volumes = []
         for raw_path in tqdm(self.raw_paths):
             XYZ, RGB, label = read_fields(raw_path)
             all = np.column_stack((XYZ, RGB, label))
-
-            if self.mode == 0:
-                all = self.map_labels(all, self.mapping_labels_ids, id2name, self.mode, True,
-                                          file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
-            if self.mode == 1:
-                # filter out ground points
-                ground_points = np.load(f'{self.ground_points_root}/{basename(raw_path).split(".")[0]}.pkl',
-                                     allow_pickle=True)
-                all = all[ground_points]
-                all = self.map_labels(all, ground_label_ids, id2name, self.mode, True,
-                                          file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
-            elif self.mode == 2:
-                # filter out non-ground points
-                ground_points = np.load(f'{self.ground_points_root}/{basename(raw_path).split(".")[0]}.pkl',
-                                     allow_pickle=True)
-                all = all[list(set(range(len(all))) - set(ground_points))]
-                all = self.map_labels(all, self.non_ground_ids, id2name, self.mode, True,
-                                          file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
+            all = self.pre_process(self.mode, all, raw_path)
 
             splits = cut_boxes(all, self.cut_in)
 
@@ -133,7 +141,6 @@ class KITTI360Dataset(Dataset):
                 RGB = part[:, 3:6]
                 label = part[:, -1]
 
-
                 data = Data(pos=torch.from_numpy(XYZ), x=torch.from_numpy(RGB), y=torch.from_numpy(label))
 
                 if self.pre_filter is not None and not self.pre_filter(data):
@@ -142,15 +149,13 @@ class KITTI360Dataset(Dataset):
                 if self.pre_transform is not None:
                     data = self.pre_transform(data)
 
-                pcd = o3d.geometry.PointCloud()
-                pcd.points = o3d.utility.Vector3dVector(data.x)
+                if self.normals:
+                    normals = compute_normals(data.pos)
+                    data.x = torch.from_numpy(np.column_stack((data.x, normals)))
 
-                o3d.geometry.PointCloud.estimate_normals(
-                    pcd,
-                    search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1,
-                                                                      max_nn=30))
-
-                data.x = torch.from_numpy(np.column_stack((data.x, np.array(pcd.normals))))
+                if self.eigenvalues:
+                    eigenv = compute_eigenv(data.pos)
+                    data.x = torch.from_numpy(np.column_stack((data.x, eigenv)))
 
                 torch.save(data, osp.join(self.processed_dir, f'{self.split}_data_{idx}.pt'))
                 idx += 1

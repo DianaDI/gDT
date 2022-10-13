@@ -18,20 +18,20 @@ class FPModule(torch.nn.Module):
 
 
 class PointNet2(torch.nn.Module):
-    def __init__(self, num_classes, batch_norm=True):
+    def __init__(self, num_classes, batch_norm=True, pos_channels=3, feature_channels=3):
         super().__init__()
 
-        pos_channels = 3
-        feature_channels = 6
+        self.pos_channels = pos_channels
+        self.feature_channels = feature_channels
 
         # Input channels account for both `pos` and node features.
-        self.sa1_module = SAModule(0.2, 0.2, MLP([pos_channels + feature_channels, 64, 64, 128]))
+        self.sa1_module = SAModule(0.2, 0.2, MLP([self.pos_channels + self.feature_channels, 64, 64, 128]))
         self.sa2_module = SAModule(0.25, 0.4, MLP([128 + 3, 128, 128, 256]))
         self.sa3_module = GlobalSAModule(MLP([256 + 3, 256, 512, 1024]))
 
         self.fp3_module = FPModule(1, MLP([1024 + 256, 256, 256]))
         self.fp2_module = FPModule(3, MLP([256 + 128, 256, 128]))
-        self.fp1_module = FPModule(3, MLP([128 + feature_channels, 128, 128, 128]))
+        self.fp1_module = FPModule(3, MLP([128 + self.feature_channels, 128, 128, 128]))
 
         self.mlp = MLP([128, 128, 128, num_classes], dropout=0.5,
                        batch_norm=False)

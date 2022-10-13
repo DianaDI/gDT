@@ -4,7 +4,6 @@ import os
 import torch
 from tqdm import tqdm
 from glob import glob
-import random
 import torch_geometric.transforms as T
 from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
@@ -59,6 +58,9 @@ if __name__ == '__main__':
     config.params_log_file = params['params_log_file']
     config.batch_norm = params['batch_norm']
     config.loss_fn = params['loss_fn']
+    config.random_id = params['random_id']
+    config.normals = params['normals']
+    config.eigenvalues = params['eigenvalues']
 
     if task_name == 'SemSegmentation':
         config.eval_clustering = params['eval_clustering']
@@ -88,13 +90,13 @@ if __name__ == '__main__':
                                NormalizeFeatureToMeanStd()])
 
     train_dataset = DatasetClass(path, split="train", num_classes=config.num_classes, mode=config.mode,
-                                 cut_in=config.cut_in,
+                                 cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                  files=train_files, transform=transform, pre_transform=pre_transform)
     val_dataset = DatasetClass(path, num_classes=config.num_classes, split="val", mode=config.mode,
-                               cut_in=config.cut_in,
+                               cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                files=val_files, pre_transform=pre_transform)
     test_dataset = DatasetClass(path, num_classes=config.num_classes, split="test", mode=config.mode,
-                                cut_in=config.cut_in,
+                                cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                 files=test_files, pre_transform=pre_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True,
                               num_workers=params['num_workers'])
@@ -107,8 +109,14 @@ if __name__ == '__main__':
     print(f"CUDA AVAILABLE: {cuda_available}")
     print(torch.cuda.get_device_name(0))
 
+    feature_channels = 3  # default RGB
+    if config.normals:
+        feature_channels += 3
+    if config.eigenvalues:
+        feature_channels += 3
+
     device = torch.device('cuda' if cuda_available else 'cpu')
-    model = PointNet2(config.num_classes, batch_norm=config.batch_norm)
+    model = PointNet2(config.num_classes, batch_norm=config.batch_norm, feature_channels=feature_channels)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     model_params = sum([np.prod(p.size()) for p in model_parameters])
     print(f"Number of parameters: {model_params}")
@@ -121,15 +129,14 @@ if __name__ == '__main__':
     loss_fn = FocalLoss(alpha=0.5, gamma=2.0,
                         reduction='mean') if config.loss_fn == 'focal' else None  # default nll defined inside methods
     save_dir = None
-    if config.resume_from == 0 and not config.test:
-        rand_num = random.randint(0, 1000)
+    if config.resume_from == 0 and config.train:
+        rand_num = config.random_id
         save_dir = f'{ROOT_DIR}/runs/{task_name}_{rand_num}'
-        dir_exist = False
-        while not dir_exist:
-            if not os.path.isdir(save_dir):
-                os.mkdir(save_dir)
-                dir_exist = os.path.isdir(save_dir)
-                print(f'Save folder created: {dir_exist}')
+        if not os.path.isdir(save_dir):
+            os.mkdir(save_dir)
+            print(f'Save folder created: {os.path.isdir(save_dir)}')
+        else:
+            print("Repeated random id, run again")
         with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 
