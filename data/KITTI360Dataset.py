@@ -8,7 +8,7 @@ from tqdm import tqdm
 import json
 
 from data.kitti_helpers import label_names, id2name, ground_label_ids, all_label_ids
-from data.pcd_utils import read_fields, cut_boxes
+from data.pcd_utils import read_fields, cut_with_trajectory
 from data.utils import compute_normals, compute_eigenv
 
 
@@ -26,6 +26,7 @@ class KITTI360Dataset(Dataset):
         :param pre_transform:
         :param pre_filter:
         """
+        self.poses_dir = "C:/Users/Diana/Desktop/DATA/Kitti360/data_poses"
         self.cut_in = cut_in
         self.split = split
         self.normals = normals
@@ -120,7 +121,7 @@ class KITTI360Dataset(Dataset):
             # filter out non-ground points
             ground_points = np.load(f'{self.ground_points_root}/{basename(path).split(".")[0]}.pkl',
                                     allow_pickle=True)
-            res = data[list(set(range(len(res))) - set(ground_points))]
+            res = data[list(set(range(len(data))) - set(ground_points))]
             res = self.map_labels(res, self.non_ground_ids, id2name, self.mode, True,
                                   file_path_to_save=f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json')
         return res
@@ -133,7 +134,11 @@ class KITTI360Dataset(Dataset):
             all = np.column_stack((XYZ, RGB, label))
             all = self.pre_process(self.mode, all, raw_path)
 
-            splits = cut_boxes(all, self.cut_in)
+            folder_name = raw_path.split("\\")[1]
+            trajectory_poses = open(f"{self.poses_dir}/{folder_name}/poses.txt", "r").read().splitlines()
+            splits = cut_with_trajectory(n=self.cut_in, pcd_path=raw_path, traj_poses=trajectory_poses,
+                                         xyz=all[:, :3], rgb=all[:, 3:6], labels=all[:, -1])
+            # cut_boxes(all, self.cut_in)
 
             for part in splits:
                 cut_volumes.append(len(part))

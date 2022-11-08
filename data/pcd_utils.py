@@ -1,9 +1,51 @@
 import glob
 import numpy as np
 from plyfile import PlyData
-import open3d as o3d
 from tqdm import tqdm
 import json
+from collections import defaultdict
+from os.path import basename
+
+
+def get_nearest_point(node, nodes):
+    dist_2 = np.sum((nodes - node) ** 2, axis=1)
+    return np.argmin(dist_2)
+
+
+def get_trajectory_points(pcd_path, poses):
+    ranges = basename(pcd_path).split(".")[0].split("_")
+    start, end = int(ranges[0]), int(ranges[1])
+    points = []
+    for line in poses:
+        l_parts = line.split(" ")
+        if start <= int(l_parts[0]) <= end:
+            x, y, z = l_parts[4], l_parts[8], l_parts[-1]
+            points.append(np.asarray((float(x), float(y), float(z))))
+    return np.asarray(points)
+
+
+def cut_with_trajectory(n, pcd_path, traj_poses, xyz, rgb, labels):
+    traj_points = get_trajectory_points(pcd_path, traj_poses)
+    part_len = int(len(traj_points) / n)
+    split_traj_points = [traj_points[i] for i in range(part_len, len(traj_points), part_len)]
+
+    parts_dict_xyz, parts_dict_rgb, parts_dict_lbl = defaultdict(list), defaultdict(list), defaultdict(list)
+
+    for i in range(len(xyz)):
+        p, r, l = xyz[i], rgb[i], labels[i]
+        nearest = get_nearest_point(p, split_traj_points)
+        parts_dict_xyz[nearest].append(p)
+        parts_dict_rgb[nearest].append(r)
+        parts_dict_lbl[nearest].append(l)
+
+    split_parts = []
+
+    for i in range(len(split_traj_points)):
+        arr_part = np.column_stack((parts_dict_xyz[i], parts_dict_rgb[i], parts_dict_lbl[i]))
+        split_parts.append(arr_part)
+
+    return split_parts
+
 
 def cut_boxes(arr, n):
     # decide whether to cut along x or y
@@ -33,23 +75,18 @@ def read_fields(path, xyz=True, rgb=True, label=True):
     labels = np.array(pcdv['semantic']) if label else None
     return XYZ, RGB, labels
 
-# XYZ, RGB, labels = read_fields("C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/2013_05_28_drive_0000_sync/static/0000005880_0000006165.ply")
-# pcd = o3d.geometry.PointCloud()
-# pcd.points = o3d.utility.Vector3dVector(XYZ)
-# pcd.colors = o3d.utility.Vector3dVector(RGB)
-# o3d.visualization.draw_geometries([pcd])
 
-
-# all_files = glob.glob("C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/*_sync/static/*.ply")
-# counts = {}
-# for file in tqdm(all_files):
-#     _, _, labels = read_fields(file, xyz=False, rgb=False, label=True)
-#     for l in labels:
-#         l = int(l)
-#         if l in counts.keys():
-#             counts[l] += 1
-#         else:
-#             counts[l] = 1
-# print(counts)
-# with open("class_label_counts.json", 'w') as fp:
-#     json.dump(counts, fp)
+def count_class_labels():
+    all_files = glob.glob("C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/*_sync/static/*.ply")
+    counts = {}
+    for file in tqdm(all_files):
+        _, _, labels = read_fields(file, xyz=False, rgb=False, label=True)
+        for l in labels:
+            l = int(l)
+            if l in counts.keys():
+                counts[l] += 1
+            else:
+                counts[l] = 1
+    print(counts)
+    with open("class_label_counts.json", 'w') as fp:
+        json.dump(counts, fp)

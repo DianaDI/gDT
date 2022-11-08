@@ -9,7 +9,6 @@ from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
 import json
 from torchgeometry.losses import FocalLoss
-from torchvision.transforms import Normalize
 
 from model.pointnet2 import PointNet2
 from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR

@@ -32,7 +32,8 @@ def compute_normals(pos):
     return np.array(pcd.normals)
 
 
-def compute_eigenv(pos, k_n=60):
+def compute_eigenv(pos, k_n=30):
+    # code from https://github.com/denabazazian/Edge_Extraction/
     pcd1 = PyntCloud(pd.DataFrame(data=np.array(pos), columns=["x", "y", "z"]))
     # find neighbors
     kdtree_id = pcd1.add_structure("kdtree")
@@ -42,5 +43,4 @@ def compute_eigenv(pos, k_n=60):
     e1 = pcd1.points['e3(' + str(k_n + 1) + ')'].values
     e2 = pcd1.points['e2(' + str(k_n + 1) + ')'].values
     e3 = pcd1.points['e1(' + str(k_n + 1) + ')'].values
-
     return np.column_stack((e1, e2, e3))
