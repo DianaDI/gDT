@@ -28,11 +28,11 @@ def compute_normals(pos):
     o3d.geometry.PointCloud.estimate_normals(pcd,
                                              search_param=o3d.geometry.KDTreeSearchParamHybrid(
                                                  radius=0.1,
-                                                 max_nn=30))
+                                                 max_nn=100))
     return np.array(pcd.normals)
 
 
-def compute_eigenv(pos, k_n=30):
+def compute_eigenv(pos, k_n=100):
     # code from https://github.com/denabazazian/Edge_Extraction/
     pcd1 = PyntCloud(pd.DataFrame(data=np.array(pos), columns=["x", "y", "z"]))
     # find neighbors
@@ -43,4 +43,10 @@ def compute_eigenv(pos, k_n=30):
     e1 = pcd1.points['e3(' + str(k_n + 1) + ')'].values
     e2 = pcd1.points['e2(' + str(k_n + 1) + ')'].values
     e3 = pcd1.points['e1(' + str(k_n + 1) + ')'].values
+
+    # add normalisation
+    e1 = np.array((e1 - np.min(e1)) / np.ptp(e1))
+    e2 = np.array((e2 - np.min(e2)) / np.ptp(e2))
+    e3 = np.array((e3 - np.min(e3)) / np.ptp(e3))
+
     return np.column_stack((e1, e2, e3))

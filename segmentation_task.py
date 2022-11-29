@@ -11,6 +11,7 @@ from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
 
 from dl_task import DLTask
+from metrics.confusion_matrix import ConfusionMatrix
 
 
 class SegmentationTask(DLTask):
@@ -31,7 +32,10 @@ class SegmentationTask(DLTask):
             accuracy = self.get_accuracy(out, target)
             wandb.log({"train_loss": loss.item(),
                        "train_acc": accuracy,
-                       "train_iteration": step})
+                       "train_iteration": step
+                       # 'eval_inputs': wandb.Object3D(
+                       #     np.column_stack((np.array(data[0].pos.cpu()), np.array(data[0].x[:, :3].cpu()) * 255)))
+                       })
             print(f'[{i + 1}/{len(loader)}] Loss: {loss.item():.4f} '
                   f'Train Acc: {accuracy:.4f}')
             losses.append(loss.item())
@@ -57,9 +61,9 @@ class SegmentationTask(DLTask):
 
         if mode != 'val':
             labels_to_check = np.unique(target)
-            iou_micro = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average='micro')
-            iou_macro = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average='macro')
-            iou_weighted = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average='weighted')
+            iou_micro = jaccard_score(y_true=target, y_pred=pred, average='micro')
+            iou_macro = jaccard_score(y_true=target, y_pred=pred, average='macro')
+            iou_weighted = jaccard_score(y_true=target, y_pred=pred, average='weighted')
             metrics_dict['iou_micro'].append(iou_micro)
             metrics_dict['iou_macro'].append(iou_macro)
             metrics_dict['iou_weighted'].append(iou_weighted)
@@ -67,6 +71,7 @@ class SegmentationTask(DLTask):
             iou_classwise_temp = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average=None)
             for label, val in zip(labels_to_check, iou_classwise_temp):
                 iou_classwise[label].append(val)
+
         return metrics_dict, iou_classwise
 
     def dbscan_cluster_o3d(self, xyz, rgb, eps=0.01, min_points=4):
@@ -154,6 +159,7 @@ class SegmentationTask(DLTask):
             self.model.load_state_dict(torch.load(load_from_path)['model_state_dict'])
         self.model.eval()
         metrics_dict_all, metrics_dict_all_post, iou_classwise_all, iou_classwise_all_post = {}, {}, {}, {}
+        # cm = ConfusionMatrix(self.config.num_classes - len(self.ignore_label))
         for i, data in enumerate(loader):
             step = i + len(loader) * epoch
             data = data.to(self.device)
@@ -175,6 +181,9 @@ class SegmentationTask(DLTask):
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {accuracy:.4f}')
 
+            # mask = ~np.in1d(target, self.ignore_label)
+            # cm.count_predicted_batch(ground_truth_vec=target[mask], predicted=pred[mask])
+
             if mode != 'val':
                 if self.config.eval_clustering:
                     print('Clustering is being done..')
@@ -187,20 +196,20 @@ class SegmentationTask(DLTask):
                                               set(list(iou_classwise.keys()) + list(iou_classwise_all_post.keys()))}
                 # self.print_res(iou_classwise_all_post, "After clustering:", False)
 
-            # if config.verbose and (i + 1) % log_img_every == 0:
+                # if config.verbose and (i + 1) % log_img_every == 0:
                 pred_remapped = self.remap_label_for_drawing(pred)
-            #     target_remapped = remap_label_for_drawing(data.y.cpu())
+                #     target_remapped = remap_label_for_drawing(data.y.cpu())
                 wandb.log(
                     {
                         "val_loss": loss,
                         "val_acc": accuracy,
-                        "val_iteration": step,
+                        "val_iteration": step
                         # 'eval_inputs': wandb.Object3D(
                         #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
                         # 'eval_targets': wandb.Object3D(
                         #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
-                        'eval_predictions': wandb.Object3D(
-                            np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
+                        # 'eval_predictions': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
                         # 'clusters': wandb.Object3D(
                         #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
                         # 'eval_accuracy': acc,
@@ -209,10 +218,16 @@ class SegmentationTask(DLTask):
             else:
                 wandb.log({"val_loss": loss,
                            "val_acc": accuracy,
-                           "val_iteration": step})
+                           "val_iteration": step
+                           # 'eval_inputs': wandb.Object3D(
+                           #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x[:, :3].cpu()) * 255)))
+                           })
 
-        if mode != 'val' and self.config.eval_clustering:
-            self.print_res(iou_classwise_all, 'Before clustering:')
-            self.print_res(iou_classwise_all_post, 'After clustering:')
-            self.print_res(metrics_dict_all_post, 'ALL METRICS (after clustering)', print_overall_mean=False)
+        # print(f'mIoU (based on conf. matrix): {cm.get_average_intersection_union()}')
+        # print(f'mAcc (based on conf. matrix): {cm.get_overall_accuracy()}')
+        if mode != 'val':
+            self.print_res(iou_classwise_all, title='Classwise results:', classwise=True)
+        if self.config.eval_clustering:
+            self.print_res(iou_classwise_all_post, title='After clustering:', classwise=True)
+            self.print_res(metrics_dict_all_post, title='ALL METRICS (after clustering)', print_overall_mean=False)
         return metrics_dict_all, metrics_dict_all_post

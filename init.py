@@ -10,10 +10,14 @@ random_id = random.randint(0, 1000)
 
 mode = 0
 
+ignore_lbl = {0: [0, 3, 34, 35, 36, 17, 23, 32, 16, 18, 19, 20, 21, 22, 24, 25, 26, 4, 9, 32, 10, 15, 27, 31],
+              1: [0, 3, 5],
+              2: [12, 29, 30, 31, 32, 11, 0, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 5, 0, 6, 22, 26]}
+
 COMMON_PARAMS = {
     'train': True,
     'val': True,
-    'test': False,
+    'test': True,
     'normalise': True,
     'random_seed': 402,
     'num_workers': 7,  # set number of cpu cores for data processing
@@ -26,7 +30,13 @@ COMMON_PARAMS = {
     'random_id': random_id,
     'resume_from': 0,
     'resume_from_id': 0,
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_873/epoch_mode_{mode}_90_model.pth"
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_358/epoch_mode_{mode}_100_model.pth" # mode: 2
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_971/epoch_mode_{mode}_90_model.pth" # mode: 1
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_173/epoch_mode_{mode}_80_model.pth"  # mode 0
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_340/epoch_mode_{mode}_100_model.pth"  # mode 0
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_155/epoch_mode_{mode}_100_model.pth"  # mode 2
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_696/epoch_mode_{mode}_100_model.pth"  # mode 1
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_607/epoch_mode_{mode}_100_model.pth"  # mode 1
         # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_620/epoch_mode_2_200_model.pth"
     # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
 }
@@ -46,33 +56,34 @@ MODEL_SPECIFIC_PARAMS = {
         'cut_in': 2,
         'num_classes': 2,
         'rand_translate': 0.01,
-        'rand_rotation_x': 0,
-        'rand_rotation_y': 0,
-        'rand_rotation_z': 0,
+        'rand_rotation_x': 0.15,
+        'rand_rotation_y': 0.15,
+        'rand_rotation_z': 0.15,
         'params_log_file': "params.json",
         'batch_norm': True,
         'loss_fn': 'nll'  # options: nll, focal
     },
     'SemSegmentation': {
-        'lr': 0.001,
+        'lr': 0.0003,
         'lr_decay': 0,
         'lr_cosine_step': 10,
         'mode': mode,  # 1, 2, 0
         'num_classes': separated_mode_class_nums[mode],
-        'batch_size': 1 if COMMON_PARAMS['test'] else 3,
-        'num_epochs': 100,
-        'subsample_to': 50000,
-        'cut_in': 5,
+        'batch_size': 1 if COMMON_PARAMS['test'] else 2,
+        'num_epochs': 130,
+        'subsample_to': 80000,
+        'cut_in': 10,
         'rand_translate': 0.01,
-        'rand_rotation_x': 0,
-        'rand_rotation_y': 0,
-        'rand_rotation_z': 0,
+        'rand_rotation_x': 0.30,
+        'rand_rotation_y': 0.30,
+        'rand_rotation_z': 0.30,
         'params_log_file': "params.json",
         'eval_clustering': False,
         'batch_norm': True,
         'loss_fn': 'focal',  # options: nll, focal
-        'clustering_eps': 0.005,  # 0.014, for mode 2
-        'clustering_min_points': 30  # 4 for mode 2
+        'clustering_eps': 0.025,  # 0.014, for mode 2
+        'clustering_min_points': 30,  # 4 for mode 2
+        'ignore_label_for_eval': ignore_lbl[mode]
     }
 }
 

@@ -60,6 +60,7 @@ if __name__ == '__main__':
     config.random_id = params['random_id']
     config.normals = params['normals']
     config.eigenvalues = params['eigenvalues']
+    config.ignore_label = params['ignore_label_for_eval']
 
     if task_name == 'SemSegmentation':
         config.eval_clustering = params['eval_clustering']
@@ -139,7 +140,8 @@ if __name__ == '__main__':
         with open(f'{save_dir}/{config.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 
-    dl_task = SegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler,
+    dl_task = SegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler, mode=config.mode,
+                               num_classes=config.num_classes,
                                model_save_dir=save_dir, optimizer=optimizer, config=config)
     wandb.watch(dl_task.model)
 
@@ -171,4 +173,5 @@ if __name__ == '__main__':
                                                    load_from_path=config.resume_model_path,
                                                    mode='eval')
         print(f'MEAN_ACCURACY: {np.mean(metrics_dict["accuracy"])}')
-        dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False)
+        dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False,
+                          mean_over_nonzero=False)
