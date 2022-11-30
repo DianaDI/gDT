@@ -4,7 +4,12 @@ import random
 from data.kitti_helpers import ground_label_ids
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-TRAIN_PATH = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
+TRAIN_PATH = "/rds/user/dd593/hpc-work/data_3d_semantics/train/"
+# "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
+GROUND_SEP_ROOT = "/rds/user/dd593/hpc-work/inliers_traj_0.6/"
+# "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train_processed/inliers_traj_0.6"
+POSES_DIR = "/rds/user/dd593/hpc-work/data_poses/"
+# "C:/Users/Diana/Desktop/DATA/Kitti360/data_poses"
 
 random_id = random.randint(0, 1000)
 
@@ -36,8 +41,9 @@ COMMON_PARAMS = {
     # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_340/epoch_mode_{mode}_100_model.pth"  # mode 0
     # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_155/epoch_mode_{mode}_100_model.pth"  # mode 2
     # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_696/epoch_mode_{mode}_100_model.pth"  # mode 1
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_607/epoch_mode_{mode}_100_model.pth"  # mode 1
-        # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_620/epoch_mode_2_200_model.pth"
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_607/epoch_mode_{mode}_100_model.pth"
+    # mode 1
+    # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_620/epoch_mode_2_200_model.pth"
     # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
 }
 

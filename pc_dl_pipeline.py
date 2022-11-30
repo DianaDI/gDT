@@ -11,7 +11,7 @@ import json
 from torchgeometry.losses import FocalLoss
 
 from model.pointnet2 import PointNet2
-from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR
+from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset
 from data.utils import train_val_test_split
@@ -91,13 +91,16 @@ if __name__ == '__main__':
 
     train_dataset = DatasetClass(path, split="train", num_classes=config.num_classes, mode=config.mode,
                                  cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
-                                 files=train_files, transform=transform, pre_transform=pre_transform)
+                                 files=train_files, transform=transform, pre_transform=pre_transform,
+                                 ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
     val_dataset = DatasetClass(path, num_classes=config.num_classes, split="val", mode=config.mode,
                                cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
-                               files=val_files, pre_transform=pre_transform)
+                               files=val_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
+                               poses_dir=POSES_DIR)
     test_dataset = DatasetClass(path, num_classes=config.num_classes, split="test", mode=config.mode,
                                 cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
-                                files=test_files, pre_transform=pre_transform)
+                                files=test_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
+                                poses_dir=POSES_DIR)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True,
                               num_workers=params['num_workers'])
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False,

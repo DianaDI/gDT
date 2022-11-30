@@ -9,14 +9,14 @@ import json
 import multiprocessing
 from joblib import Parallel, delayed
 
-from data.kitti_helpers import label_names, id2name, ground_label_ids, all_label_ids
+from data.kitti_helpers import id2name, ground_label_ids, all_label_ids
 from data.pcd_utils import read_fields, cut_with_trajectory
 from data.utils import compute_normals, compute_eigenv
 
 
 class KITTI360Dataset(Dataset):
     def __init__(self, root, files, num_classes, mode=0, split="train", cut_in=2, transform=None, pre_transform=None,
-                 pre_filter=None, normals=False, eigenvalues=False):
+                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None):
         """
 
         :param root:
@@ -28,7 +28,7 @@ class KITTI360Dataset(Dataset):
         :param pre_transform:
         :param pre_filter:
         """
-        self.poses_dir = "C:/Users/Diana/Desktop/DATA/Kitti360/data_poses"
+        self.poses_dir = poses_dir
         self.cut_in = cut_in
         self.split = split
         self.normals = normals
@@ -37,7 +37,7 @@ class KITTI360Dataset(Dataset):
         self.root = root
         self.mode = mode
         self.num_classes = num_classes
-        self.ground_points_root = "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train_processed/inliers_traj_0.6"
+        self.ground_points_root = ground_points_dir
         self.class_weights_dict = None
         self.class_label_id_save_path = f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
         with open("./class_label_counts.json", "r") as read_content:
