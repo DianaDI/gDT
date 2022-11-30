@@ -129,8 +129,7 @@ class KITTI360Dataset(Dataset):
                                   file_path_to_save=self.class_label_id_save_path)
         return res
 
-    def proc_sample(self, splits, i, n, parent_loop_idx):
-        part = splits[i]
+    def proc_sample(self, part, idx):
         XYZ = torch.from_numpy(part[:, :3])
         RGB = torch.from_numpy(part[:, 3:6])
         label = torch.from_numpy(part[:, -1])
@@ -151,11 +150,11 @@ class KITTI360Dataset(Dataset):
             eigenv = compute_eigenv(data.pos, k_n=500)
             data.x = torch.from_numpy(np.column_stack((data.x, eigenv)))
 
-        idx = i + n * parent_loop_idx
         torch.save(data, osp.join(self.processed_dir, f'{self.split}_data_{idx}.pt'))
 
     def process(self):
         # cut_volumes = []
+        idx = 0
         for raw_path_idx in tqdm(range(len(self.raw_paths))):
             raw_path = self.raw_paths[raw_path_idx]
             XYZ, RGB, label = read_fields(raw_path)
@@ -168,9 +167,12 @@ class KITTI360Dataset(Dataset):
                                          xyz=all[:, :3], rgb=all[:, 3:6], labels=all[:, -1])
 
             splits_len = len(splits)
-            num_cores = multiprocessing.cpu_count() - 4
-            Parallel(n_jobs=num_cores)(
-                delayed(self.proc_sample)(splits, i, splits_len, raw_path_idx) for i in range(splits_len))
+            # num_cores = multiprocessing.cpu_count() - 4
+            # Parallel(n_jobs=num_cores)(
+            #     delayed(self.proc_sample)(splits, i, splits_len, raw_path_idx) for i in range(splits_len))
+            for i in range(splits_len):
+                self.proc_sample(splits[i], idx)
+                idx += 1
 
     @property
     def processed_dir(self) -> str:
