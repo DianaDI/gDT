@@ -36,8 +36,9 @@ class SegmentationTask(DLTask):
                        # 'eval_inputs': wandb.Object3D(
                        #     np.column_stack((np.array(data[0].pos.cpu()), np.array(data[0].x[:, :3].cpu()) * 255)))
                        })
-            print(f'[{i + 1}/{len(loader)}] Loss: {loss.item():.4f} '
-                  f'Train Acc: {accuracy:.4f}')
+            if (i + 1) % 10 == 0:
+                print(f'[{i + 1}/{len(loader)}] Loss: {loss.item():.4f} '
+                      f'Train Acc: {accuracy:.4f}')
             losses.append(loss.item())
         if (epoch + 1) % save_model_every_epoch == 0:
             torch.save({

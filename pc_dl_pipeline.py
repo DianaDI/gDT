@@ -126,7 +126,7 @@ if __name__ == '__main__':
     # print(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     scheduler = CosineAnnealingLR(optimizer,
-                                  config.lr_cosine_step) if config.lr_cosine_step > 0 else None
+                                  config.lr_cosine_step, verbose=True) if config.lr_cosine_step > 0 else None
     # ExponentialLR(optimizer, config.lr_decay, verbose=config.verbose)
 
     loss_fn = FocalLoss(alpha=0.5, gamma=2.0,
