@@ -228,7 +228,7 @@ if __name__ == '__main__':
     config.mode = 2  # 0 - all, 1 - ground, 2 - non-ground
     config.scheduler_par = 1000
     config.seed = 402
-    config.num_classes = mode_class_nums[config.mode]
+    config.n_classes = mode_class_nums[config.mode]
     config.verbose = True
     config.resume_from = 0
     config.resume_from_rand_id = 0
@@ -255,13 +255,13 @@ if __name__ == '__main__':
     pre_transform = T.Compose([T.FixedPoints(config.subsample_to, replace=False),
                                T.NormalizeScale()])
 
-    train_dataset = KITTI360Dataset(train_path, split="train", num_classes=config.num_classes, mode=config.mode,
+    train_dataset = KITTI360Dataset(train_path, split="train", num_classes=config.n_classes, mode=config.mode,
                                     cut_in=config.cut_in,
                                     files=train_files, transform=transform, pre_transform=pre_transform)
-    val_dataset = KITTI360Dataset(train_path, num_classes=config.num_classes, split="val", mode=config.mode,
+    val_dataset = KITTI360Dataset(train_path, num_classes=config.n_classes, split="val", mode=config.mode,
                                   cut_in=config.cut_in,
                                   files=val_files, pre_transform=pre_transform)
-    test_dataset = KITTI360Dataset(train_path, num_classes=config.num_classes, split="test", mode=config.mode,
+    test_dataset = KITTI360Dataset(train_path, num_classes=config.n_classes, split="test", mode=config.mode,
                                    cut_in=config.cut_in,
                                    files=test_files, pre_transform=pre_transform)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, num_workers=7)
@@ -272,7 +272,7 @@ if __name__ == '__main__':
     print(f"CUDA AVAILABLE: {cuda_available}")
     print(torch.cuda.get_device_name(0))
     device = torch.device('cuda' if cuda_available else 'cpu')
-    model = PointNet2(config.num_classes)
+    model = PointNet2(config.n_classes)
     model = model.to(device)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -326,7 +326,7 @@ if __name__ == '__main__':
         print("Old: ")
         classwise_iou = dict(sorted(classwise_iou.items()))
         print(classwise_iou)
-        with open(glob(f"./mode{config.mode}_num_classes{config.num_classes}*.json")[0], "r") as read_content:
+        with open(glob(f"./mode{config.mode}_num_classes{config.n_classes}*.json")[0], "r") as read_content:
             id_name_dict = json.load(read_content)
         id_name_dict = dict([(int(k), id_name_dict[k]) for k in id_name_dict])
         print("original: ")

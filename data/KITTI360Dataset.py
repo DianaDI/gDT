@@ -36,10 +36,10 @@ class KITTI360Dataset(Dataset):
         self.files = files
         self.root = root
         self.mode = mode
-        self.num_classes = num_classes
+        self.n_classes = num_classes
         self.ground_points_root = ground_points_dir
         self.class_weights_dict = None
-        self.class_label_id_save_path = f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
+        self.class_label_id_save_path = f'./mode{self.mode}_num_classes{self.n_classes}_res_label_map.json'
         with open("./class_label_counts.json", "r") as read_content:
             self.class_weights_dict_original = json.load(read_content)
             self.class_weights_dict_original = dict(
@@ -176,7 +176,7 @@ class KITTI360Dataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f'processed_mode_{self.mode}_traj_num_classes_{self.num_classes}')
+        return osp.join(self.root, f'processed_mode_{self.mode}_traj_num_classes_{self.n_classes}')
 
     def len(self):
         return len(self.processed_file_names)

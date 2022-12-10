@@ -43,7 +43,7 @@ if __name__ == '__main__':
     config.cut_in = params['cut_in']
     config.subsample_to = params['subsample_to']
     config.seed = params['random_seed']
-    config.num_classes = params['num_classes']
+    config.n_classes = params['num_classes']
     config.verbose = params['verbose']
     config.resume_from = params['resume_from']
     config.resume_from_id = params['resume_from_id']
@@ -89,15 +89,15 @@ if __name__ == '__main__':
                                T.NormalizeScale(),
                                NormalizeFeatureToMeanStd()])
 
-    train_dataset = DatasetClass(path, split="train", num_classes=config.num_classes, mode=config.mode,
+    train_dataset = DatasetClass(path, split="train", num_classes=config.n_classes, mode=config.mode,
                                  cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                  files=train_files, transform=transform, pre_transform=pre_transform,
                                  ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
-    val_dataset = DatasetClass(path, num_classes=config.num_classes, split="val", mode=config.mode,
+    val_dataset = DatasetClass(path, num_classes=config.n_classes, split="val", mode=config.mode,
                                cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                files=val_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
                                poses_dir=POSES_DIR)
-    test_dataset = DatasetClass(path, num_classes=config.num_classes, split="test", mode=config.mode,
+    test_dataset = DatasetClass(path, num_classes=config.n_classes, split="test", mode=config.mode,
                                 cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                 files=test_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
                                 poses_dir=POSES_DIR)
@@ -119,7 +119,7 @@ if __name__ == '__main__':
         feature_channels += 3
 
     device = torch.device('cuda' if cuda_available else 'cpu')
-    model = PointNet2(config.num_classes, batch_norm=config.batch_norm, feature_channels=feature_channels)
+    model = PointNet2(config.n_classes, batch_norm=config.batch_norm, feature_channels=feature_channels)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     model_params = sum([np.prod(p.size()) for p in model_parameters])
     print(f"Number of parameters: {model_params}")
@@ -144,7 +144,7 @@ if __name__ == '__main__':
             json.dump(params, fp, indent=2)
 
     dl_task = SegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler, mode=config.mode,
-                               num_classes=config.num_classes,
+                               num_classes=config.n_classes,
                                model_save_dir=save_dir, optimizer=optimizer, config=config)
     wandb.watch(dl_task.model)
 

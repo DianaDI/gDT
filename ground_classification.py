@@ -111,7 +111,7 @@ if __name__ == '__main__':
     config.cut_in = params['cut_in']
     config.subsample_to = params['subsample_to']
     config.seed = params['random_seed']
-    config.num_classes = params['num_classes']
+    config.n_classes = params['num_classes']
     config.verbose = params['verbose']
     config.resume_from = params['resume_from']
     config.resume_from_id = params['resume_from_id']
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_name(0))
 
     device = torch.device('cuda' if cuda_available else 'cpu')
-    model = PointNet2(config.num_classes)
+    model = PointNet2(config.n_classes)
     model = model.to(device)
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     model_params = sum([np.prod(p.size()) for p in model_parameters])
