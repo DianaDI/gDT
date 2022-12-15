@@ -6,6 +6,7 @@ from torch_geometric.data import Data, Dataset
 from os.path import basename
 from tqdm import tqdm
 import json
+import re
 import multiprocessing
 from joblib import Parallel, delayed
 
@@ -161,7 +162,7 @@ class KITTI360Dataset(Dataset):
             all = np.column_stack((XYZ, RGB, label))
             all = self.pre_process(self.mode, all, raw_path)
 
-            folder_name = raw_path.split("/")[1] # todo
+            folder_name = re.split(r'/|\\', raw_path)[-3]
             trajectory_poses = open(f"{self.poses_dir}/{folder_name}/poses.txt", "r").read().splitlines()
             splits = cut_with_trajectory(n=self.cut_in, pcd_path=raw_path, traj_poses=trajectory_poses,
                                          xyz=all[:, :3], rgb=all[:, 3:6], labels=all[:, -1])
