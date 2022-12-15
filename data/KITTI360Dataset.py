@@ -7,6 +7,7 @@ from os.path import basename
 from tqdm import tqdm
 import json
 import re
+import os
 import multiprocessing
 from joblib import Parallel, delayed
 
@@ -40,8 +41,9 @@ class KITTI360Dataset(Dataset):
         self.n_classes = num_classes
         self.ground_points_root = ground_points_dir
         self.class_weights_dict = None
-        self.class_label_id_save_path = f'./mode{self.mode}_num_classes{self.n_classes}_res_label_map.json'
-        with open("./class_label_counts.json", "r") as read_content:
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.class_label_id_save_path = f'{self.current_dir}/mode{self.mode}_num_classes{self.n_classes}_res_label_map.json'
+        with open(f"{self.current_dir}/class_label_counts.json", "r") as read_content:
             self.class_weights_dict_original = json.load(read_content)
             self.class_weights_dict_original = dict(
                 [(int(k), self.class_weights_dict_original[k]) for k in self.class_weights_dict_original])
