@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import json
+import os
 
 
 class DLTask:
@@ -33,8 +34,8 @@ class DLTask:
 
     def print_res(self, res_dict, title, classwise=False, print_overall_mean=True, mean_over_nonzero=True):
         print(title)
-        # print('Printing only non-zero values')
-        id_name_dict_path = f'./mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        id_name_dict_path = f'{current_dir}/mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
 
         with open(id_name_dict_path) as f:
             id_name_dict = json.load(f)
