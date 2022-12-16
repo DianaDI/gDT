@@ -172,8 +172,9 @@ if __name__ == '__main__':
 
     if config.test:
         print("RUNNING TEST...")
+        model_path = save_dir if config.train else config.resume_model_path
         metrics_dict, extra_metrics = dl_task.eval(loader=test_loader, loss_fn=loss_fn,
-                                                   load_from_path=config.resume_model_path,
+                                                   load_from_path=model_path,
                                                    mode='eval')
         print(f'MEAN_ACCURACY: {np.mean(metrics_dict["accuracy"])}')
         dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False,
