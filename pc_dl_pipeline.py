@@ -61,6 +61,7 @@ if __name__ == '__main__':
     config.normals = params['normals']
     config.eigenvalues = params['eigenvalues']
     config.ignore_label = params['ignore_label_for_eval']
+    config.save_every = params['save_every']
 
     if task_name == 'SemSegmentation':
         config.eval_clustering = params['eval_clustering']
@@ -165,7 +166,7 @@ if __name__ == '__main__':
 
         print(f'Saving in: {save_dir}')
         for epoch in tqdm(range(epoch_start, config.epochs)):
-            train_loss = dl_task.train(loader=train_loader, loss_fn=loss_fn, epoch=epoch, save_model_every_epoch=10)
+            train_loss = dl_task.train(loader=train_loader, loss_fn=loss_fn, epoch=epoch, save_model_every_epoch=config.save_every)
             if config.val:
                 metrics_dict, _ = dl_task.eval(loader=val_loader, loss_fn=loss_fn, epoch=epoch)
                 print(f'Epoch: {epoch:02d}, Mean acc: {np.mean(metrics_dict["accuracy"]):.4f}')
