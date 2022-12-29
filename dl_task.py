@@ -17,14 +17,13 @@ class DLTask:
         self.config = config
         self.mode = mode
         self.num_classes = num_classes
-        self.ignore_label = config.ignore_label
 
-    def train(self, loader, epoch, loss_fn=None, save_model_every_epoch=5):
+    def train(self, loader, epoch, loss_fn=None, save_model_every_epoch=5, ignored_labels=None):
         # implement in child
         return None
 
     @torch.no_grad()
-    def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0):
+    def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0, ignored_labels=None):
         # implement in child
         return None
 

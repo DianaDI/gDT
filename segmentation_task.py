@@ -9,6 +9,7 @@ import copy
 from collections import Counter
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
+from torchgeometry.losses import FocalLoss
 
 from dl_task import DLTask
 from metrics.confusion_matrix import ConfusionMatrix
@@ -16,7 +17,7 @@ from metrics.confusion_matrix import ConfusionMatrix
 
 class SegmentationTask(DLTask):
 
-    def train(self, loader, epoch, loss_fn=None, save_model_every_epoch=5):
+    def train(self, loader, epoch, loss_fn=None, save_model_every_epoch=5, ignored_labels=None):
         self.model.train()
         losses = []
         for i, data in enumerate(loader):
@@ -25,8 +26,17 @@ class SegmentationTask(DLTask):
             self.optimizer.zero_grad()
             out = self.model(data)
             target = torch.squeeze(data.y).type(torch.LongTensor).to(self.device)
-            loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
-                                                                       target.unsqueeze(0).unsqueeze(1))
+            if ignored_labels is None:
+                loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
+                                                                           target.unsqueeze(0).unsqueeze(1))
+            else:
+                out_t = out.t().unsqueeze(0).unsqueeze(2)
+                target_t = target.unsqueeze(0).unsqueeze(1)
+                losses_no_reduct = FocalLoss(alpha=0.5, gamma=2.0, reduction='none')(out_t, target_t)
+                weights = torch.logical_not(sum(target_t.squeeze() == i for i in ignored_labels).bool()).int()
+                losses_w = losses_no_reduct * weights
+                loss = torch.mean(losses_w)
+
             loss.backward()
             self.optimizer.step()
             accuracy = self.get_accuracy(out, target)
@@ -155,7 +165,7 @@ class SegmentationTask(DLTask):
         return metrics_dict, iou_classwise
 
     @torch.no_grad()
-    def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0):
+    def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0, ignored_labels=None):
         if load_from_path:
             self.model.load_state_dict(torch.load(load_from_path)['model_state_dict'])
         self.model.eval()

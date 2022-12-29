@@ -4,6 +4,10 @@ import pandas as pd
 import numpy as np
 from pyntcloud import PyntCloud
 import open3d as o3d
+import json
+
+from init import separated_mode_class_nums, ROOT_DIR
+from data.kitti_helpers import labels
 
 
 def train_val_test_split(paths, test_size=0.1, seed=42, verbose=True):
@@ -50,3 +54,16 @@ def compute_eigenv(pos, k_n=100):
     e3 = np.array((e3 - np.min(e3)) / np.ptp(e3))
 
     return np.column_stack((e1, e2, e3))
+
+
+def get_ignore_labels(mode):
+    path = f'{ROOT_DIR}/mode{mode}_num_classes{separated_mode_class_nums[mode]}_res_label_map.json'
+    with open(path, "r") as read_content:
+        current_lbl_mapping = json.load(read_content)
+    current_lbl_mapping = dict((v, k) for k, v in current_lbl_mapping.items())
+    ignore_labels = []
+    for l in labels:
+        if l.ignoreInEval:
+            if l.name in current_lbl_mapping.keys():
+                ignore_labels.append(int(current_lbl_mapping[l.name]))
+    return ignore_labels

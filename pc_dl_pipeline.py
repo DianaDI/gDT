@@ -14,7 +14,7 @@ from model.pointnet2 import PointNet2
 from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset
-from data.utils import train_val_test_split
+from data.utils import train_val_test_split, get_ignore_labels
 from segmentation_task import SegmentationTask
 from data.transforms import NormalizeFeatureToMeanStd
 
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     config.random_id = params['random_id']
     config.normals = params['normals']
     config.eigenvalues = params['eigenvalues']
-    config.ignore_label = params['ignore_label_for_eval']
+    config.ignore_labels = params['ignore_labels']
     config.save_every = params['save_every']
 
     if task_name == 'SemSegmentation':
@@ -149,6 +149,8 @@ if __name__ == '__main__':
                                model_save_dir=save_dir, optimizer=optimizer, config=config)
     wandb.watch(dl_task.model)
 
+    ignored_labels = get_ignore_labels(mode=config.mode) if config.ignore_labels else None
+
     if config.train:
         print("RUNNING TRAINING...")
         epoch_start = 0
@@ -166,7 +168,8 @@ if __name__ == '__main__':
 
         print(f'Saving in: {save_dir}')
         for epoch in tqdm(range(epoch_start, config.epochs)):
-            train_loss = dl_task.train(loader=train_loader, loss_fn=loss_fn, epoch=epoch, save_model_every_epoch=config.save_every)
+            train_loss = dl_task.train(loader=train_loader, loss_fn=loss_fn, epoch=epoch,
+                                       save_model_every_epoch=config.save_every, ignored_labels=ignored_labels)
             if config.val:
                 metrics_dict, _ = dl_task.eval(loader=val_loader, loss_fn=loss_fn, epoch=epoch)
                 print(f'Epoch: {epoch:02d}, Mean acc: {np.mean(metrics_dict["accuracy"]):.4f}')
