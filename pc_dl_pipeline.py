@@ -90,6 +90,8 @@ if __name__ == '__main__':
                                T.NormalizeScale(),
                                NormalizeFeatureToMeanStd()])
 
+    print(f'MODE: {config.mode}')
+
     train_dataset = DatasetClass(path, split="train", num_classes=config.n_classes, mode=config.mode,
                                  cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                  files=train_files, transform=transform, pre_transform=pre_transform,
