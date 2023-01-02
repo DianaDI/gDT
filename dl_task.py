@@ -32,6 +32,9 @@ class DLTask:
         return correct_nodes / len(target)
 
     def print_res(self, res_dict, title, classwise=False, print_overall_mean=True, mean_over_nonzero=True):
+        print(f'MODE {self.mode}')
+        print(self.config)
+        print("-------------------------")
         print(title)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         id_name_dict_path = f'{current_dir}/mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
