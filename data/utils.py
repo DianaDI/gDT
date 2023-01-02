@@ -66,4 +66,6 @@ def get_ignore_labels(mode):
         if l.ignoreInEval:
             if l.name in current_lbl_mapping.keys():
                 ignore_labels.append(int(current_lbl_mapping[l.name]))
+    if mode == 1 or mode == 2:
+        ignore_labels.append(max(list(current_lbl_mapping.values())))
     return ignore_labels
