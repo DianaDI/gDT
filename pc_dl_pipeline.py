@@ -13,7 +13,7 @@ from torchgeometry.losses import FocalLoss
 from model.pointnet2 import PointNet2
 from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
-from data.KITTI360Dataset import KITTI360Dataset
+from data.KITTI360Dataset import KITTI360Dataset, HIGHWAY_SCENES_FILES
 from data.utils import train_val_test_split, get_ignore_labels
 from segmentation_task import SegmentationTask
 from data.transforms import NormalizeFeatureToMeanStd
@@ -62,6 +62,7 @@ if __name__ == '__main__':
     config.eigenvalues = params['eigenvalues']
     config.ignore_labels = params['ignore_labels']
     config.save_every = params['save_every']
+    config.highway_files = params['highway_files']
 
     if task_name == 'SemSegmentation':
         config.eval_clustering = params['eval_clustering']
@@ -72,7 +73,13 @@ if __name__ == '__main__':
     torch.cuda.manual_seed(config.seed)
 
     path = TRAIN_PATH
-    all_files = sorted(glob(f"{path}*/static/*.ply"))
+    all_files = []
+    if config.highway_files:
+        print("TRAINING WITH HIGHWAY FILES ONLY")
+        for i in HIGHWAY_SCENES_FILES:
+            all_files.append(os.path.join(path, i))
+    else:
+        all_files = sorted(glob(f"{path}*/static/*.ply"))
     train_files, test_files, val_files = train_val_test_split(all_files, seed=config.seed)
 
     transforms = []
@@ -180,7 +187,7 @@ if __name__ == '__main__':
         print("RUNNING TEST...")
         load_from_path = None if config.train else config.resume_model_path
         metrics_dict, extra_metrics = dl_task.eval(loader=test_loader, loss_fn=loss_fn, load_from_path=load_from_path,
-                                                       mode='eval')
+                                                   mode='eval')
         print(f'MEAN_ACCURACY: {np.mean(metrics_dict["accuracy"])}')
         dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False,
                           mean_over_nonzero=False)
