@@ -13,14 +13,11 @@ random_id = random.randint(0, 1000)
 
 mode = 0
 
-ignore_lbl = {0: [0, 3, 34, 35, 36, 17, 23, 32, 16, 18, 19, 20, 21, 22, 24, 25, 26, 4, 9, 32, 10, 15, 27, 31],
-              1: [0, 3, 5],
-              2: [12, 29, 30, 31, 32, 11, 0, 13, 14, 15, 16, 17, 18, 19, 20, 21, 27, 5, 0, 6, 22, 26]}
-
 COMMON_PARAMS = {
     'train': True,
     'val': True,
-    'test': False,
+    'test': True,
+    'highway_files': True,
     'normalise': True,
     'random_seed': 402,
     'num_workers': 7,  # set number of cpu cores for data processing
@@ -33,17 +30,7 @@ COMMON_PARAMS = {
     'random_id': random_id,
     'resume_from': 0,
     'resume_from_id': 0,
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_358/epoch_mode_{mode}_100_model.pth" # mode: 2
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_971/epoch_mode_{mode}_90_model.pth" # mode: 1
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_173/epoch_mode_{mode}_80_model.pth"  # mode 0
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_340/epoch_mode_{mode}_100_model.pth"  # mode 0
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_155/epoch_mode_{mode}_100_model.pth"  # mode 2
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_696/epoch_mode_{mode}_100_model.pth"  # mode 1
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_607/epoch_mode_{mode}_100_model.pth"
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_126/epoch_mode_{mode}_10_model.pth"
-    # mode 1
-    # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_620/epoch_mode_2_200_model.pth"
-    # "C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_234/epoch_mode_2_200_model.pth"
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_121/epoch_mode_{mode}_90_model.pth"
 }
 
 separated_mode_class_nums = {0: 37,
@@ -74,10 +61,10 @@ MODEL_SPECIFIC_PARAMS = {
         'lr_cosine_step': 5,
         'mode': mode,  # 1, 2, 0
         'num_classes': separated_mode_class_nums[mode],
-        'batch_size': 4,
-        'num_epochs': 100,
-        'subsample_to': 20000,
-        'cut_in': 10,
+        'batch_size': 3,
+        'num_epochs': 150,
+        'subsample_to': 50000,
+        'cut_in': 5,
         'rand_translate': 0.01,
         'rand_rotation_x': 0.30,
         'rand_rotation_y': 0.30,
@@ -85,14 +72,9 @@ MODEL_SPECIFIC_PARAMS = {
         'params_log_file': "params.json",
         'eval_clustering': False,
         'batch_norm': True,
-        'loss_fn': 'nll',  # options: nll, focal
+        'loss_fn': 'focal',  # options: nll, focal
         'clustering_eps': 0.025,  # 0.014, for mode 2
         'clustering_min_points': 30,  # 4 for mode 2
-        'ignore_label_for_eval': ignore_lbl[mode]
+        'ignore_labels': True  # now works only with focal loss
     }
 }
-
-# todo: run 3 evals
-# mode 2: 620
-# mode 0: 854
-# mode 1: 873
