@@ -18,7 +18,7 @@ from data.utils import compute_normals, compute_eigenv
 
 class KITTI360Dataset(Dataset):
     def __init__(self, root, files, num_classes, mode=0, split="train", cut_in=2, transform=None, pre_transform=None,
-                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None):
+                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None, config=None):
         """
 
         :param root:
@@ -30,6 +30,8 @@ class KITTI360Dataset(Dataset):
         :param pre_transform:
         :param pre_filter:
         """
+
+        self.config = config
         self.poses_dir = poses_dir
         self.cut_in = cut_in
         self.split = split
@@ -179,7 +181,7 @@ class KITTI360Dataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f'processed_mode_{self.mode}_traj_num_classes_{self.n_classes}')
+        return osp.join(self.root, f'processed_mode_{self.mode}_traj_num_classes_{self.n_classes}_{self.config.data_suffix}')  # _h_dense')
 
     def len(self):
         return len(self.processed_file_names)

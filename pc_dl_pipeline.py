@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     wandb.finish()
     wandb.init(project=task_name)
-    wandb.init()
+    # wandb.init()
 
     wandb.define_metric("train_iteration")
     wandb.define_metric("val_iteration")
@@ -63,6 +63,7 @@ if __name__ == '__main__':
     config.ignore_labels = params['ignore_labels']
     config.save_every = params['save_every']
     config.highway_files = params['highway_files']
+    config.data_suffix = params['data_suffix']
 
     if task_name == 'SemSegmentation':
         config.eval_clustering = params['eval_clustering']
@@ -102,15 +103,15 @@ if __name__ == '__main__':
     train_dataset = DatasetClass(path, split="train", num_classes=config.n_classes, mode=config.mode,
                                  cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                  files=train_files, transform=transform, pre_transform=pre_transform,
-                                 ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+                                 ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR, config=config)
     val_dataset = DatasetClass(path, num_classes=config.n_classes, split="val", mode=config.mode,
                                cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                files=val_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
-                               poses_dir=POSES_DIR)
+                               poses_dir=POSES_DIR, config=config)
     test_dataset = DatasetClass(path, num_classes=config.n_classes, split="test", mode=config.mode,
                                 cut_in=config.cut_in, normals=config.normals, eigenvalues=config.eigenvalues,
                                 files=test_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
-                                poses_dir=POSES_DIR)
+                                poses_dir=POSES_DIR, config=config)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True,
                               num_workers=params['num_workers'])
     val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False,

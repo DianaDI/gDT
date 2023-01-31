@@ -11,12 +11,14 @@ POSES_DIR = "/rds/user/dd593/hpc-work/data_poses/" if linux else "C:/Users/Diana
 
 random_id = random.randint(0, 1000)
 
-mode = 0
+mode = 2
+epoch = 150
 
 COMMON_PARAMS = {
-    'train': True,
-    'val': True,
+    'train': False,
+    'val': False,
     'test': True,
+    'data_suffix': "highways",
     'highway_files': True,
     'normalise': True,
     'random_seed': 402,
@@ -30,7 +32,8 @@ COMMON_PARAMS = {
     'random_id': random_id,
     'resume_from': 0,
     'resume_from_id': 0,
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_121/epoch_mode_{mode}_90_model.pth"
+    #'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_322/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_127/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
 }
 
 separated_mode_class_nums = {0: 37,
@@ -43,9 +46,9 @@ MODEL_SPECIFIC_PARAMS = {
         'lr_decay': 0.99,  # every epoch
         'lr_cosine_step': None,
         'batch_size': 3,
-        'num_epochs': 100,
-        'subsample_to': 70000,
-        'cut_in': 2,
+        'num_epochs': 0,
+        'subsample_to': 100000,
+        'cut_in': 10,
         'num_classes': 2,
         'rand_translate': 0.01,
         'rand_rotation_x': 0.15,
@@ -61,20 +64,20 @@ MODEL_SPECIFIC_PARAMS = {
         'lr_cosine_step': 5,
         'mode': mode,  # 1, 2, 0
         'num_classes': separated_mode_class_nums[mode],
-        'batch_size': 3,
-        'num_epochs': 150,
-        'subsample_to': 50000,
-        'cut_in': 5,
+        'batch_size': 1,
+        'num_epochs': 0,
+        'subsample_to': 100000,
+        'cut_in': 10,
         'rand_translate': 0.01,
-        'rand_rotation_x': 0.30,
-        'rand_rotation_y': 0.30,
-        'rand_rotation_z': 0.05,
+        'rand_rotation_x': 0.15,
+        'rand_rotation_y': 0.15,
+        'rand_rotation_z': 0.15,
         'params_log_file': "params.json",
-        'eval_clustering': False,
+        'eval_clustering': True,
         'batch_norm': True,
         'loss_fn': 'focal',  # options: nll, focal
         'clustering_eps': 0.025,  # 0.014, for mode 2
-        'clustering_min_points': 30,  # 4 for mode 2
-        'ignore_labels': True  # now works only with focal loss
+        'clustering_min_points': 10,  # 4 for mode 2
+        'ignore_labels': False  # now works only with focal loss
     }
 }
