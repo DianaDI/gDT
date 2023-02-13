@@ -12,17 +12,17 @@ POSES_DIR = "/rds/user/dd593/hpc-work/data_poses/" if linux else "C:/Users/Diana
 random_id = random.randint(0, 1000)
 
 mode = 2
-epoch = 150
+epoch = 15
 
 COMMON_PARAMS = {
     'train': False,
     'val': False,
     'test': True,
-    'data_suffix': "highways",
-    'highway_files': True,
+    'data_suffix': "all_100k_10",
+    'highway_files': False,
     'normalise': True,
     'random_seed': 402,
-    'num_workers': 7,  # set number of cpu cores for data processing
+    'num_workers': 0,  # set number of cpu cores for data processing
     'plot_sample': True,
     'test_size': 0.1,
     'save_every': 5,
@@ -33,7 +33,8 @@ COMMON_PARAMS = {
     'resume_from': 0,
     'resume_from_id': 0,
     #'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_322/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_127/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
+    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_155/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSeg539/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
 }
 
 separated_mode_class_nums = {0: 37,
