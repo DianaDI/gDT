@@ -5,19 +5,44 @@ import numpy as np
 from pyntcloud import PyntCloud
 import open3d as o3d
 import json
+import re
 
 from init import separated_mode_class_nums, ROOT_DIR
 from data.kitti_helpers import labels
+
+
+def print_ds_stats(paths, train, test, val):
+    n = len(paths)
+    print(f"TRAIN SIZE: {len(train)} kitti files ({len(train) / n * 100}%)")
+    print(f"VAL SIZE: {len(val)} kitti files ({len(val) / n * 100}%)")
+    print(f"TEST SIZE: {len(test)} kitti files ({len(test) / n * 100}%)")
 
 
 def train_val_test_split(paths, test_size=0.1, seed=42, verbose=True):
     train, test = train_test_split(paths, test_size=test_size, random_state=seed)
     train, val = train_test_split(train, test_size=test_size, random_state=seed)
     if verbose:
-        n = len(paths)
-        print(f"TRAIN SIZE: {len(train)} kitti files ({len(train) / n * 100}%)")
-        print(f"VAL SIZE: {len(val)} kitti files ({len(val) / n * 100}%)")
-        print(f"TEST SIZE: {len(test)} kitti files ({len(test) / n * 100}%)")
+        print_ds_stats(paths, train, test, val)
+    return train, test, val
+
+
+def get_train_val_test_split_from_file(split_path, all_files, data_root_path, test_size=0.1, seed=42, verbose=True):
+    # consider val as test now
+    file_paths = open(split_path, 'r').readlines()
+    test = file_paths
+    for i in range(len(test)):
+        test[i] = data_root_path + test[i].strip().split("train/")[-1]
+
+    rest = []
+    # get the rest
+    split_file_names = [j.split("static/")[-1] for j in test]
+    for f in all_files:
+        if f[-25:] not in split_file_names:
+            rest.append(f)
+
+    train, val = train_test_split(rest, test_size=test_size, random_state=seed)
+    if verbose:
+        print_ds_stats(all_files, train, test, val)
     return train, test, val
 
 
