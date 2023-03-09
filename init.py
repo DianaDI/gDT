@@ -17,7 +17,7 @@ epoch = 15
 COMMON_PARAMS = {
     'train': True,
     'val': True,
-    'test': True,
+    'test': False,
     'data_suffix': "non_hw_only_100k_10",
     'highway_files': False,
     'non_highway_files': True,
