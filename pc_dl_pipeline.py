@@ -112,10 +112,10 @@ if __name__ == '__main__':
         transforms.append(T.RandomRotate(params['rand_rotation_z'], axis=2))
 
     transform = T.Compose(transforms)
-    pre_transform = T.Compose([  # T.FixedPoints(cfg.subsample_to, replace=False),
-        T.NormalizeScale(),
-        # NormalizeFeatureToMeanStd()
-    ])
+    pre_transform = T.Compose([T.FixedPoints(cfg.subsample_to, replace=False),
+                               T.NormalizeScale(),
+                               NormalizeFeatureToMeanStd()
+                               ])
 
     print(f'MODE: {cfg.mode}')
 
