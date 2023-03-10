@@ -7,6 +7,7 @@ from collections import defaultdict
 from os.path import basename
 import open3d as o3d
 from sklearn.cluster import DBSCAN
+import torch.nn.functional as F
 import copy
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
@@ -14,7 +15,7 @@ from sklearn.metrics import jaccard_score
 
 
 def get_accuracy(out, target):
-    correct_nodes = out.eq(target).sum().item()  # out.argmax(dim=1).eq(target).sum().item() todo fix this
+    correct_nodes = out.argmax(dim=1).eq(target).sum().item()  # out.eq(target).sum().item()  #  todo fix this
     return correct_nodes / len(target)
 
 
@@ -27,9 +28,9 @@ def compute_metrics(target, out, pred, loss_fn=None, mode="val"):
     metrics_dict = defaultdict(list)
     iou_classwise = defaultdict(list)
 
-    # loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
-    #                                                            target.unsqueeze(0).unsqueeze(1))
-    # metrics_dict['loss'].append(loss)
+    loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
+                                                                target.unsqueeze(0).unsqueeze(1))
+    metrics_dict['loss'].append(loss)
     acc = get_accuracy(out, target)
     metrics_dict['accuracy'].append(acc)
 
