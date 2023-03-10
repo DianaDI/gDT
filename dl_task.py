@@ -27,10 +27,6 @@ class DLTask:
         # implement in child
         return None
 
-    def get_accuracy(self, out, target):
-        correct_nodes = out.argmax(dim=1).eq(target).sum().item()
-        return correct_nodes / len(target)
-
     def print_res(self, res_dict, title, classwise=False, print_overall_mean=True, mean_over_nonzero=True):
         #print(f'MODE {self.mode}')
         #print(self.config)
@@ -50,6 +46,7 @@ class DLTask:
                 if mean_over_nonzero:
                     non_zeros = np.nonzero(value)
                     if len(non_zeros[0]) > 0:
+                        print(f"Non-zeros: {round(len(np.array(value)[non_zeros]) / len(np.array(value)) * 100)} %")
                         avg = np.mean(np.array(value)[non_zeros])
                         avgs.append(avg)
                 else:

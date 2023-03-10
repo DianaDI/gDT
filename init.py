@@ -83,6 +83,6 @@ MODEL_SPECIFIC_PARAMS = {
         'clustering_eps': 0.025,  # 0.014, for mode 2
         'clustering_min_points': 10,  # 4 for mode 2
         'ignore_labels': False,  # now works only with focal loss,
-        'load_predictions': True
+        'load_predictions': False
     }
 }

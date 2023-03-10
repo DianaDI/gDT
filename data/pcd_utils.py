@@ -10,11 +10,43 @@ from sklearn.cluster import DBSCAN
 import copy
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.metrics import jaccard_score
+
+
+def get_accuracy(out, target):
+    correct_nodes = out.eq(target).sum().item()  # out.argmax(dim=1).eq(target).sum().item() todo fix this
+    return correct_nodes / len(target)
 
 
 def get_nearest_point(node, nodes):
     dist_2 = np.sum((nodes - node) ** 2, axis=1)
     return np.argmin(dist_2)
+
+
+def compute_metrics(target, out, pred, loss_fn=None, mode="val"):
+    metrics_dict = defaultdict(list)
+    iou_classwise = defaultdict(list)
+
+    # loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
+    #                                                            target.unsqueeze(0).unsqueeze(1))
+    # metrics_dict['loss'].append(loss)
+    acc = get_accuracy(out, target)
+    metrics_dict['accuracy'].append(acc)
+
+    if mode != 'val':
+        labels_to_check = np.unique(target)
+        iou_micro = jaccard_score(y_true=target, y_pred=pred, average='micro')
+        iou_macro = jaccard_score(y_true=target, y_pred=pred, average='macro')
+        iou_weighted = jaccard_score(y_true=target, y_pred=pred, average='weighted')
+        metrics_dict['iou_micro'].append(iou_micro)
+        metrics_dict['iou_macro'].append(iou_macro)
+        metrics_dict['iou_weighted'].append(iou_weighted)
+
+        iou_classwise_temp = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average=None)
+        for label, val in zip(labels_to_check, iou_classwise_temp):
+            iou_classwise[label].append(val)
+
+    return metrics_dict, iou_classwise
 
 
 def get_trajectory_points(pcd_path, poses):
@@ -29,24 +61,30 @@ def get_trajectory_points(pcd_path, poses):
     return np.asarray(points)
 
 
-def cut_with_trajectory(n, pcd_path, traj_poses, xyz, rgb, labels):
+def cut_with_trajectory(n, pcd_path, traj_poses, xyz, rgb, labels, predictions=None):
     traj_points = get_trajectory_points(pcd_path, traj_poses)
     part_len = int(len(traj_points) / n)
     split_traj_points = [traj_points[i] for i in range(part_len, len(traj_points), part_len)]
 
-    parts_dict_xyz, parts_dict_rgb, parts_dict_lbl = defaultdict(list), defaultdict(list), defaultdict(list)
+    parts_dict_xyz, parts_dict_rgb, parts_dict_lbl, parts_dict_pred = defaultdict(list), defaultdict(list), defaultdict(
+        list), defaultdict(list)
 
     for i in range(len(xyz)):
         p, r, l = xyz[i], rgb[i], labels[i]
+        pred = None if predictions is None else predictions[i]
         nearest = get_nearest_point(p, split_traj_points)
         parts_dict_xyz[nearest].append(p)
         parts_dict_rgb[nearest].append(r)
         parts_dict_lbl[nearest].append(l)
+        if predictions is not None:
+            parts_dict_pred[nearest].append(pred)
 
     split_parts = []
 
     for i in range(len(split_traj_points)):
-        arr_part = np.column_stack((parts_dict_xyz[i], parts_dict_rgb[i], parts_dict_lbl[i]))
+        arr_part = np.column_stack(
+            (parts_dict_xyz[i], parts_dict_rgb[i], parts_dict_lbl[i])) if predictions is None else np.column_stack(
+            (parts_dict_xyz[i], parts_dict_rgb[i], parts_dict_lbl[i], parts_dict_pred[i]))
         split_parts.append(arr_part)
 
     return split_parts
@@ -133,11 +171,17 @@ def center(arr):
     return arr - arr.mean()
 
 
-def dbscan_cluster_sklearn(X, eps=0.005, min_points=50):
+def dbscan_cluster_sklearn(xyz=None, rgb=None, eps=0.014, min_points=20):
     # X = np.column_stack((xyz, rgb))
-    print("Fitting DBSCAN...")
-    db = DBSCAN(eps=eps, min_samples=min_points).fit(X)
-    return db.labels_ + 1
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
+    distances = pcd.compute_nearest_neighbor_distance()
+    avg_dist = np.mean(distances)
+    print(f'DIST AVG: {avg_dist}')
+    X = xyz
+    eps = avg_dist * 8  # 10, 9 is nice with min points=20, 17
+    db = DBSCAN(eps=eps, min_samples=10).fit(X)
+    return db.labels_
 
 
 def draw_pc_with_labels(xyz, labels, num_clusters, title=""):
@@ -169,20 +213,20 @@ def prep_and_cluster(pcd, eps, min_points=20, visualise=False, cluster_on_grey=T
         intensity_variance = np.var(grey_colors)
         avg_var = np.mean(intensity_variance)
         print(f'VAR AVG: {avg_var}')
-        labels = dbscan_cluster_sklearn(np.column_stack((xyz, grey_colors)), eps=avg_dist*10+avg_var,
-                                        min_points=min_points)  # =20)  # eps 06 finds very good line markings, 0.08 good for ground on 50k for 10 cuts scheme
+        cl_labels = dbscan_cluster_sklearn(np.column_stack((xyz, grey_colors)), eps=avg_dist * 10 + avg_var,
+                                           min_points=min_points)  # =20)  # eps 06 finds very good line markings, 0.08 good for ground on 50k for 10 cuts scheme
     elif cluster_on_xyz:
         print("Clustering on xyz only")
-        labels = dbscan_cluster_sklearn(xyz, eps=avg_dist*5, min_points=min_points)
+        cl_labels = dbscan_cluster_sklearn(xyz)
     else:
-        labels = None
+        cl_labels = None
         print("SET WHAT TO CLUSTER")
-    clusters = set(labels)
+    clusters = set(cl_labels)
     print(f"Num of clusters {len(clusters)}")
     print(clusters)
     if visualise:
-        draw_pc_with_labels(xyz, labels, num_clusters=len(clusters), title="Clusters")
-    return clusters, labels, normals, xyz, colors
+        draw_pc_with_labels(xyz, cl_labels, num_clusters=len(clusters), title="Clusters")
+    return clusters, cl_labels, normals, xyz, colors
 
 
 def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, cluster_on_grey=True,
@@ -190,8 +234,10 @@ def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, c
     # distances = pcd.compute_nearest_neighbor_distance()
     # avg_dist = np.mean(distances)
     # print(f'DIST AVG: {avg_dist}')
-    clusters, labels, normals, xyz, colors = prep_and_cluster(pcd, eps=0.03, min_points=20, visualise=visualise, # 0.07 for 50k density on 10 cuts, 0.04 - for 100k on 10 cuts
-                                                      cluster_on_grey=cluster_on_grey, cluster_on_xyz=cluster_on_xyz)
+    clusters, labels, normals, xyz, colors = prep_and_cluster(pcd, eps=0.03, min_points=20, visualise=visualise,
+                                                              # 0.07 for 50k density on 10 cuts, 0.04 - for 100k on 10 cuts
+                                                              cluster_on_grey=cluster_on_grey,
+                                                              cluster_on_xyz=cluster_on_xyz)
 
     markings = list()
     roads = list()
@@ -218,14 +264,12 @@ def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, c
             else:
                 pcd.paint_uniform_color([0, 0, 1])
 
-
             if pca_variances[0] - pca_variances[1] >= 0.8:
                 markings.append(pcd)
             else:
                 # pcd.paint_uniform_color([0.5, 0.5, 0.5])
                 pcd.colors = o3d.utility.Vector3dVector(colors[cluster_idx])
                 roads.append(pcd)
-
 
         cluster_labels_and_size_dict = dict(
             sorted(cluster_labels_and_size_dict.items(), key=lambda item: item[1], reverse=True))
@@ -276,12 +320,17 @@ def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, c
     return labels, clusters
 
 
-def cluster_with_intensities_above_road(pcd, visualise=False, do_pca=False, cluster_on_grey=False, cluster_on_xyz=True, use_true_colors=False):
-    clusters, labels, normals, xyz, colors = prep_and_cluster(pcd, eps=0.015, min_points=10, visualise=visualise,
-                                                      cluster_on_grey=cluster_on_grey, cluster_on_xyz=cluster_on_xyz)
+def cluster_with_intensities_above_road(pcd, pred=None, target=None, visualise=False, do_pca=False,
+                                        cluster_on_grey=False, cluster_on_xyz=True,
+                                        use_true_colors=False):
+    clusters, cl_labels, normals, xyz, colors = prep_and_cluster(pcd, eps=0.015, min_points=10, visualise=visualise,
+                                                                 cluster_on_grey=cluster_on_grey,
+                                                                 cluster_on_xyz=cluster_on_xyz)
 
     polelikes = list()
     meshes = list()
+
+    new_pred_after_clustering = pred
 
     if do_pca:
         pca = PCA(n_components=2)
@@ -289,7 +338,7 @@ def cluster_with_intensities_above_road(pcd, visualise=False, do_pca=False, clus
         clusters.remove(0)  # remove noise
         cluster_labels_and_size_dict = dict()
         for c in clusters:
-            cluster_idx = np.where(labels == c)
+            cluster_idx = np.where(cl_labels == c)
             cluster_points = xyz[cluster_idx]
             cluster_labels_and_size_dict[c] = len(cluster_points)
 
@@ -317,10 +366,18 @@ def cluster_with_intensities_above_road(pcd, visualise=False, do_pca=False, clus
                 if z > x and z > y:
                     # get axis alligned bb and check dimensions. if z dim is longest then it is pole!
                     polelikes.append(pcd)
+                    # apply label 17 (the only pole there) todo
+                    new_pred_after_clustering[cluster_idx] = 17
+
         print(f"Pole-likes: {len(polelikes)}")
-        if visualise and len(polelikes) > 0:
-            print("Pole like found")
-            o3d.visualization.draw_geometries(polelikes, width=1200, height=1000)
+        # if visualise and len(polelikes) > 0:
+        #     print("Pole like found")
+        #     o3d.visualization.draw_geometries(polelikes, width=1200, height=1000)
+
+        # pred_remapped = self.remap_label_for_drawing(new_pred_after_clustering)
+
+    metrics_dict_c, iou_classwise_c = compute_metrics(target, out=new_pred_after_clustering, pred=new_pred_after_clustering,
+                                                               mode='eval')
 
         # for pc in tqdm(polelikes):
         #     mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd=pc, depth=8)
@@ -331,13 +388,21 @@ def cluster_with_intensities_above_road(pcd, visualise=False, do_pca=False, clus
         # if visualise:
         #     o3d.visualization.draw_geometries(meshes, mesh_show_back_face=True, width=1200, height=1000)
 
-    return labels, clusters
+    return metrics_dict_c, iou_classwise_c
 
 
-def cluster_with_intensities(pcd, mode, visualise=False, do_pca=False):
+def cluster_with_intensities(pcd, mode, pred=None, target=None, visualise=False, do_pca=False):
     if mode == 1:
-        return cluster_with_intensities_road_surfaces(pcd, visualise, do_pca, cluster_on_grey=True, cluster_on_xyz=True, use_true_colors=False)
+        return cluster_with_intensities_road_surfaces(pcd, visualise, do_pca, cluster_on_grey=True, cluster_on_xyz=True,
+                                                      use_true_colors=False)
     elif mode == 2:
-        return cluster_with_intensities_above_road(pcd, visualise, do_pca, cluster_on_grey=False, cluster_on_xyz=True)
+        return cluster_with_intensities_above_road(pcd=pcd, visualise=visualise, do_pca=do_pca, pred=pred, target=target,
+                                                   cluster_on_grey=False, cluster_on_xyz=True)
     else:
         print("NOT IMPLEMENTED")
+
+
+def normalise_to_main_color(rgb):
+    rgb = rgb / np.asarray(rgb.max(dim=1).values)[:, None]
+    # rgb = rgb / np.asarray(rgb.sum(dim=1))[:, None]
+    return rgb

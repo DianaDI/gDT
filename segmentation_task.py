@@ -3,7 +3,6 @@ import torch.nn.functional as F
 import wandb
 import numpy as np
 from collections import defaultdict
-from sklearn.metrics import jaccard_score
 import open3d as o3d
 import copy
 from collections import Counter
@@ -13,7 +12,8 @@ from torchgeometry.losses import FocalLoss
 
 from dl_task import DLTask
 from metrics.confusion_matrix import ConfusionMatrix
-from data.pcd_utils import torchdata2o3dpcd, cluster_with_intensities, draw_pc_with_labels
+from data.pcd_utils import torchdata2o3dpcd, cluster_with_intensities, draw_pc_with_labels, minmax, rgb2gray, center, \
+    dbscan_cluster_sklearn, get_accuracy, compute_metrics, normalise_to_main_color
 
 
 class SegmentationTask(DLTask):
@@ -40,7 +40,7 @@ class SegmentationTask(DLTask):
 
             loss.backward()
             self.optimizer.step()
-            accuracy = self.get_accuracy(out, target)
+            accuracy = get_accuracy(out, target)
             wandb.log({"train_loss": loss.item(),
                        "train_acc": accuracy,
                        "train_iteration": step
@@ -61,31 +61,6 @@ class SegmentationTask(DLTask):
             self.scheduler.step()
         return np.mean(losses)
 
-    def compute_metrics(self, target, out, pred, loss_fn=None, mode="val"):
-        metrics_dict = defaultdict(list)
-        iou_classwise = defaultdict(list)
-
-        loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
-                                                                   target.unsqueeze(0).unsqueeze(1))
-        metrics_dict['loss'].append(loss)
-        acc = self.get_accuracy(out, target)
-        metrics_dict['accuracy'].append(acc)
-
-        if mode != 'val':
-            labels_to_check = np.unique(target)
-            iou_micro = jaccard_score(y_true=target, y_pred=pred, average='micro')
-            iou_macro = jaccard_score(y_true=target, y_pred=pred, average='macro')
-            iou_weighted = jaccard_score(y_true=target, y_pred=pred, average='weighted')
-            metrics_dict['iou_micro'].append(iou_micro)
-            metrics_dict['iou_macro'].append(iou_macro)
-            metrics_dict['iou_weighted'].append(iou_weighted)
-
-            iou_classwise_temp = jaccard_score(y_true=target, y_pred=pred, labels=labels_to_check, average=None)
-            for label, val in zip(labels_to_check, iou_classwise_temp):
-                iou_classwise[label].append(val)
-
-        return metrics_dict, iou_classwise
-
     def dbscan_cluster_o3d(self, xyz, rgb, eps=0.01, min_points=4):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(np.array(xyz))
@@ -94,16 +69,17 @@ class SegmentationTask(DLTask):
         cluster_labels = np.array(pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
         return cluster_labels
 
-    def dbscan_cluster_sklearn(self, xyz, rgb, eps=0.014, min_points=20):
-        # X = np.column_stack((xyz, rgb))
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(xyz)
-        distances = pcd.compute_nearest_neighbor_distance()
-        avg_dist = np.mean(distances)
-        print(f'DIST AVG: {avg_dist}')
-        X = xyz
-        eps = avg_dist * 9  # 10, 9 is nice with min points=20
-        db = DBSCAN(eps=eps, min_samples=17).fit(X)
+    def dbscan_cluster_sklearn_rgb(self, rgb, xyz=None, eps=0.014, min_points=20):
+        # grey_colors = np.asarray(rgb2gray(rgb * 255))
+        # grey_colors = minmax(center(grey_colors))
+        # intensity_variance = np.var(grey_colors)
+        # avg_var = np.mean(intensity_variance)
+        # print(f'DIST VAR: {avg_var}')
+        rgb = np.asarray(rgb)
+        X = np.column_stack((rgb, xyz))  # grey_colors.reshape(-1, 1)
+        eps = 0.03
+        # eps = 0.3  # 10, 9 is nice with min points=20, 17
+        db = DBSCAN(eps=eps, min_samples=30).fit(X)
         return db.labels_
 
     def compose_condition(self, a, vals):
@@ -112,17 +88,22 @@ class SegmentationTask(DLTask):
             cond &= (a != vals[i])
         return cond
 
-    def draw_pc_with_labels(self, xyz, labels):
+    def draw_pc_with_labels(self, xyz, labels, window_name="PC with labels"):
         max_label = labels.max()
         # print(f"point cloud has {max_label + 1} clusters")
-        colors = plt.get_cmap("hsv")(labels / (max_label if max_label > 0 else 1))
-        colors[labels < 0] = 0
+        colors = plt.get_cmap("tab20")(labels % 20)  # (max_label if max_label > 0 else 1))
+        # colors[labels < 0] = 0
 
         pcd = o3d.geometry.PointCloud()
         pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
         pcd.points = o3d.utility.Vector3dVector(xyz)
+        o3d.visualization.draw_geometries([pcd], window_name=window_name)
 
-        o3d.visualization.draw_geometries([pcd])
+    def draw_pc_with_colors(self, xyz, colors, window_name="PC with colors"):
+        pcd = o3d.geometry.PointCloud()
+        pcd.colors = o3d.utility.Vector3dVector(colors)
+        pcd.points = o3d.utility.Vector3dVector(xyz)
+        o3d.visualization.draw_geometries([pcd], window_name=window_name)
 
     def remap_label_for_drawing(self, arr):
         arr = np.array(arr)
@@ -144,48 +125,67 @@ class SegmentationTask(DLTask):
             new_pred[cluster_labels == cl] = freq_label
         return new_pred
 
-    def cluster_and_apply_frequent_label(self, batch_data, out, target):
-        xyz = batch_data.pos
-        rgb = batch_data.x
-        pred = np.argmax(out, axis=-1)
-        cond = self.compose_condition(pred, [
-            10])  # TODO move out this vals and double check if vals are correct after chaging ground classes
-        xyz_filtered = xyz.cpu()  # [cond].cpu()  # filter out above classes
-        pred_filtered = pred.cpu()  # [cond].cpu()
-        rgb_filtered = rgb.cpu()  # [cond].cpu()
+    def cluster_and_apply_frequent_label(self, batch_data, out, target, visualise=False):
+        xyz = batch_data.pos.cpu()
+        rgb = batch_data.x[:, :3].cpu()  # todo doesnt look right
+        pred = out.cpu()  # np.argmax(out, axis=-1) - for pointnet realtime preds todo!
+
+        self.draw_pc_with_colors(xyz, rgb)
+        # self.draw_pc_with_colors(xyz, normalise_to_main_color(rgb))
+
+        rgb = normalise_to_main_color(rgb)
+
+        classes_to_filter_out = [21, 11, 22]  # 7, 8, 12, 13]  # todo move this into config
+
+        cond = self.compose_condition(pred, classes_to_filter_out)
+
+        n_conditions = len(classes_to_filter_out)
+        xyz_filtered = xyz[cond] if n_conditions > 0 else xyz
+        pred_filtered = pred[cond] if n_conditions > 0 else pred
+        rgb_filtered = rgb[cond] if n_conditions > 0 else rgb
+        target_f = target[cond] if n_conditions > 0 else target
         # cluster_labels = self.dbscan_cluster_o3d(xyz_filtered.cpu(), rgb_filtered.cpu(), eps=0.025,
         #                                          min_points=50)  # not bad with 0,03 -> for pole +2%
 
         metrics_dict, iou_classwise = None, None
-        if len(xyz_filtered) > 0:
-            cluster_labels = self.dbscan_cluster_sklearn(xyz_filtered, rgb_filtered, eps=self.config.clustering_eps,
-                                                         min_points=self.config.clustering_min_points)
-
-            # self.draw_pc_with_labels(xyz_filtered, cluster_labels)
-            # self.draw_pc_with_labels(xyz_filtered, pred_filtered)
-
-            # wandb.log(
-            #     {'clusters': wandb.Object3D(
-            #             np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))})
-
-            # iterate through clusters
-            cluster_labels_unique = np.unique(cluster_labels)
-            print(f'Clusters cnt: {cluster_labels_unique}')
-            pred_fixed = copy.deepcopy(pred_filtered)
-            for cl in cluster_labels_unique:
-                if cl == -1:
-                    continue
-                # get most frequent label
-                # pred_under_cluster = list(pred[cond][cluster_labels == cl])
-                pred_under_cluster = list(pred[cluster_labels == cl])
-                freq_label = Counter(pred_under_cluster).most_common(1)[0][
-                    0]  # max(set(pred_under_cluster), key=pred_under_cluster.count)
-                pred_fixed[cluster_labels == cl] = freq_label
-
-            new_pred = copy.deepcopy(pred)
-            # new_pred[cond] = pred_fixed
-            new_pred = pred_fixed
-            metrics_dict, iou_classwise = self.compute_metrics(target, out=out, pred=new_pred, mode='eval')
+        # if len(xyz_filtered) > 0:
+        #     cluster_labels = dbscan_cluster_sklearn(xyz_filtered, rgb_filtered, eps=self.config.clustering_eps,
+        #                                             min_points=self.config.clustering_min_points)
+        #
+        #     if visualise:
+        #         print(f"classes in pred: {set(np.asarray(pred_filtered))}")
+        #         self.draw_pc_with_labels(xyz_filtered, target_f, window_name="Target")
+        #         self.draw_pc_with_labels(xyz_filtered, pred_filtered, window_name="Predictions")
+        #         self.draw_pc_with_labels(xyz_filtered, cluster_labels, window_name="Clusters")
+        #
+        #     # iterate through clusters
+        #     cluster_labels_unique = np.unique(cluster_labels)
+        #     print(f'Clusters cnt: {cluster_labels_unique}')
+        #     pred_fixed = copy.deepcopy(pred_filtered)
+        #     for cl in cluster_labels_unique:
+        #         if cl == -1:
+        #             continue
+        #
+        #         rgb2 = rgb_filtered[cluster_labels == cl]
+        #         xyz2 = xyz_filtered[cluster_labels == cl]
+        #         cluster_labels_c = self.dbscan_cluster_sklearn_rgb(rgb2, xyz2)
+        #         cluster_labels_unique_c = np.unique(cluster_labels_c)
+        #         print(f'Clusters cnt RGB: {cluster_labels_unique_c}')
+        #         self.draw_pc_with_colors(xyz2, rgb2)
+        #         self.draw_pc_with_labels(xyz2, cluster_labels_c, window_name="Clusters RGB")
+        #
+        #         # get most frequent label
+        #         pred_under_cluster = np.asarray(list(pred_filtered[cluster_labels == cl]))
+        #         freq_label = Counter(pred_under_cluster).most_common(1)[0][0]
+        #         # if len(pred_under_cluster[pred_under_cluster == int(freq_label)]) / len(pred_under_cluster) > 0.85:
+        #         pred_fixed[cluster_labels == cl] = freq_label
+        #
+        #     new_pred = copy.deepcopy(pred)
+        #     if n_conditions > 0:
+        #         new_pred[cond] = pred_fixed
+        #     else:
+        #         new_pred = pred_fixed
+        #     metrics_dict, iou_classwise = compute_metrics(target=target, out=new_pred, pred=new_pred, mode='eval')
         return metrics_dict, iou_classwise
 
     @torch.no_grad()
@@ -194,19 +194,22 @@ class SegmentationTask(DLTask):
             self.model.load_state_dict(torch.load(load_from_path)['model_state_dict'])
         self.model.eval()
         metrics_dict_all, metrics_dict_all_post, iou_classwise_all, iou_classwise_all_post = {}, {}, {}, {}
-        cm = ConfusionMatrix(self.config.n_classes)
+        # m = ConfusionMatrix(self.config.n_classes)
         for i, data in enumerate(loader):
-            # if i+1 in [17, 18, 21, 25, 44, 46]:
             step = i + len(loader) * epoch
-            data = data.to(self.device)
+            data = data.cpu()
             out = self.model(data)
             out = out.cpu()
-            target = torch.squeeze(data.y).type(torch.LongTensor).cpu()
-            pred = np.argmax(out, axis=-1)
-            road_idxs = np.where(pred == 1)  # 1 - label for road, todo: remove this ugliness:)
+            target = torch.squeeze(data.y[:, 0]).type(torch.LongTensor).cpu()
+            pred = data.y[:, 1].cpu().int()  # np.argmax(out, axis=-1)
+            # road_idxs = np.where(pred == 1)  # 1 - label for road, todo: remove this ugliness:)
 
-            metrics_dict, iou_classwise = self.compute_metrics(target=target, out=out, pred=pred,
-                                                               loss_fn=loss_fn, mode=mode)
+            # self.draw_pc_with_labels(np.asarray(data.pos), np.asarray(target), window_name="GT")
+            # self.draw_pc_with_labels(np.asarray(data.pos), np.asarray(pred), window_name="Prediction")
+
+            # out = pred
+            metrics_dict, iou_classwise = compute_metrics(target=target, out=out, pred=pred,
+                                                          loss_fn=loss_fn, mode=mode)
 
             metrics_dict_all = {key: metrics_dict.get(key, []) + metrics_dict_all.get(key, [])
                                 for key in set(list(metrics_dict.keys()) + list(metrics_dict_all.keys()))}
@@ -218,29 +221,30 @@ class SegmentationTask(DLTask):
             loss = metrics_dict['loss'][0]
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {accuracy:.4f}')
-            self.print_res(iou_classwise, title='Classwise NN results for sample:', classwise=True,
+            self.print_res(iou_classwise, title='Classwise NN results for sample:', classwise=False,
                            mean_over_nonzero=False)
 
             # mask = ~np.in1d(target, self.ignore_label)
             # cm.count_predicted_batch(ground_truth_vec=target[mask], predicted=pred[mask])
-            cm.count_predicted_batch(ground_truth_vec=target, predicted=pred)
+            # cm.count_predicted_batch(ground_truth_vec=target, predicted=pred)
 
             if mode != 'val':
                 # if i+1 in [18, 21, 24, 25, 44, 46]:
                 # if i > 22:
-                # pcd = torchdata2o3dpcd(data.cpu(), visualise=True)
+                # pcd = torchdata2o3dpcd(data.cpu(), visualise=False)
                 # if self.config.mode == 1:
                 #     pcd = pcd.select_by_index(np.asarray(road_idxs).squeeze(0))
                 # print("TARGET CLASSES")
                 # print(set(np.asarray(target.cpu())))
                 # pred_remapped = self.remap_label_for_drawing(pred)
-                # draw_pc_with_labels(data.pos.cpu(), np.asarray(pred_remapped), len(set(pred_remapped)), title="Predictions")
-                #
-                # cluster_labels, clusters = cluster_with_intensities(pcd, mode=self.config.mode, visualise=True, do_pca=True)
+                # draw_pc_with_labels(data.pos.cpu(), np.asarray(pred), len(set(pred)), title="Predictions")
+
+                # metrics_dict_c, iou_classwise_c = cluster_with_intensities(pcd, pred=pred, target=target, mode=self.config.mode, visualise=False, do_pca=True)
 
                 if self.config.eval_clustering:
                     print('Clustering is being done..')
-                    metrics_dict, iou_classwise = self.cluster_and_apply_frequent_label(batch_data=data, out=out, target=target)
+                    metrics_dict, iou_classwise = self.cluster_and_apply_frequent_label(batch_data=data, out=out,
+                                                                                        target=target)
                     if metrics_dict is not None:
                         metrics_dict_all_post = {key: metrics_dict.get(key, []) + metrics_dict_all_post.get(key, [])
                                                  for key in
@@ -248,14 +252,12 @@ class SegmentationTask(DLTask):
                         iou_classwise_all_post = {key: iou_classwise.get(key, []) + iou_classwise_all_post.get(key, [])
                                                   for key in
                                                   set(list(iou_classwise.keys()) + list(iou_classwise_all_post.keys()))}
+                        self.print_res(iou_classwise, title='Classwise NN+Clustering results for sample:',
+                                       classwise=False,
+                                       mean_over_nonzero=False)
 
-                # new_pred_after_clustering = self.compute_under_clusters(cluster_labels, clusters, pred)
-                # pred_remapped = self.remap_label_for_drawing(new_pred_after_clustering)
-                #
-                # metrics_dict_c, iou_classwise_c = self.compute_metrics(target, out=out, pred=new_pred_after_clustering, mode='eval')
-                # self.print_res(iou_classwise_c, title='Classwise NN+CLUSTERS results for sample:', classwise=True)
-                # # draw_pc_with_labels(data.pos.cpu(), np.asarray(pred_remapped), len(set(pred_remapped)), title="Predictions after adjustments")
-                #
+                # draw_pc_with_labels(data.pos.cpu(), np.asarray(pred_remapped), len(set(pred_remapped)), title="Predictions after adjustments")
+
                 # metrics_dict_all_post = {key: metrics_dict_c.get(key, []) + metrics_dict_all_post.get(key, [])
                 #                          for key in
                 #                          set(list(metrics_dict_c.keys()) + list(metrics_dict_all_post.keys()))}
@@ -266,22 +268,22 @@ class SegmentationTask(DLTask):
                 # if config.verbose and (i + 1) % log_img_every == 0:
 
                 # target_remapped = self.remap_label_for_drawing(data.y.cpu())
-                # wandb.log(
-                #     {
-                #         "val_loss": loss,
-                #         "val_acc": accuracy,
-                #         "val_iteration": step
-                #         # 'eval_inputs': wandb.Object3D(
-                #         #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
-                #         # 'eval_targets': wandb.Object3D(
-                #         #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
-                #         # 'eval_predictions': wandb.Object3D(
-                #         #     np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
-                #         # 'clusters': wandb.Object3D(
-                #         #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
-                #         # 'eval_accuracy': acc,
-                #         # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
-                #     })
+                wandb.log(
+                    {
+                        "val_loss": loss,
+                        "val_acc": accuracy,
+                        "val_iteration": step
+                        # 'eval_inputs': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
+                        # 'eval_targets': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
+                        # 'eval_predictions': wandb.Object3D(
+                        #     np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
+                        # 'clusters': wandb.Object3D(
+                        #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
+                        # 'eval_accuracy': acc,
+                        # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
+                    })
             # else:
             #     wandb.log({"val_loss": loss,
             #                "val_acc": accuracy,
@@ -290,16 +292,18 @@ class SegmentationTask(DLTask):
             #                #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x[:, :3].cpu()) * 255)))
             #                })
 
-        print(f'mIoU (based on conf. matrix): {cm.get_average_intersection_union()}')
-        print(f'mAcc (based on conf. matrix): {cm.get_overall_accuracy()}')
-        print(cm.get_intersection_union_per_class())
-        print(cm.get_mean_class_accuracy())
+        # print(f'mIoU (based on conf. matrix): {cm.get_average_intersection_union()}')
+        # print(f'mAcc (based on conf. matrix): {cm.get_overall_accuracy()}')
+        # print(cm.get_intersection_union_per_class())
+        # print(cm.get_mean_class_accuracy())
 
         if mode != 'val':
-            self.print_res(metrics_dict_all_post, title='ALL METRICS NN', print_overall_mean=False,
+            self.print_res(metrics_dict_all, title='ALL METRICS NN', print_overall_mean=False,
                            mean_over_nonzero=False)
-            self.print_res(iou_classwise_all, title='Classwise NN results:', classwise=True, mean_over_nonzero=False)
+            self.print_res(iou_classwise_all, title='Classwise NN results:', classwise=False, mean_over_nonzero=False)
             if self.config.eval_clustering:
-                self.print_res(iou_classwise_all_post, title='After clustering:', classwise=True)
-                self.print_res(metrics_dict_all_post, title='ALL METRICS (after clustering)', print_overall_mean=False)
+                self.print_res(iou_classwise_all_post, title='After clustering:', classwise=False,
+                               mean_over_nonzero=False)
+                self.print_res(metrics_dict_all_post, title='ALL METRICS (after clustering)', print_overall_mean=False,
+                               mean_over_nonzero=False)
         return metrics_dict_all, metrics_dict_all_post

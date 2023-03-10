@@ -15,10 +15,13 @@ from data.kitti_helpers import id2name, ground_label_ids, all_label_ids
 from data.pcd_utils import read_fields, cut_with_trajectory
 from data.utils import compute_normals, compute_eigenv
 
+prediction_load_path = "C:/Users/Diana/Desktop/DATA/Kitti360/kitti_for_dva/kitti360mm/submissions/2023-2-27_9-48-45/"
+
 
 class KITTI360Dataset(Dataset):
     def __init__(self, root, files, num_classes, mode=0, split="train", cut_in=2, transform=None, pre_transform=None,
-                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None, config=None):
+                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None,
+                 config=None):
         """
 
         :param root:
@@ -130,14 +133,16 @@ class KITTI360Dataset(Dataset):
             ground_points = np.load(f'{self.ground_points_root}/{basename(path).split(".")[0]}.pkl',
                                     allow_pickle=True)
             res = data[list(set(range(len(data))) - set(ground_points))]
-            res = self.map_labels(res, self.non_ground_ids, id2name, self.mode, True,
-                                  file_path_to_save=self.class_label_id_save_path)
+            # no remapping for pred loaded
+            if not self.config.load_predictions:
+                res = self.map_labels(res, self.non_ground_ids, id2name, self.mode, True,
+                                      file_path_to_save=self.class_label_id_save_path)
         return res
 
     def proc_sample(self, part, idx):
         XYZ = torch.from_numpy(part[:, :3])
         RGB = torch.from_numpy(part[:, 3:6])
-        label = torch.from_numpy(part[:, -1])
+        label = torch.from_numpy(part[:, 6]) if not self.config.load_predictions else torch.from_numpy(part[:, 6:8])
 
         data = Data(pos=XYZ, x=RGB, y=label)
 
@@ -162,14 +167,22 @@ class KITTI360Dataset(Dataset):
         idx = 0
         for raw_path_idx in tqdm(range(len(self.raw_paths))):
             raw_path = self.raw_paths[raw_path_idx]
+            predictions = [] if self.config.load_predictions else None
+            if self.split == "test" and self.config.test and self.config.load_predictions:
+                folder_id = raw_path.split("_sync")[0][-4:]
+                file_name = raw_path[-25:-4]
+                prediction_file = prediction_load_path + folder_id + "_" + file_name + ".npy"
+                predictions = np.load(prediction_file, allow_pickle=True)
+
             XYZ, RGB, label = read_fields(raw_path)
-            all = np.column_stack((XYZ, RGB, label))
+            all = np.column_stack((XYZ, RGB, label, predictions)) if self.config.load_predictions else np.column_stack((XYZ, RGB, label))
             all = self.pre_process(self.mode, all, raw_path)
 
             folder_name = re.split(r'/|\\', raw_path)[-3]
             trajectory_poses = open(f"{self.poses_dir}/{folder_name}/poses.txt", "r").read().splitlines()
+            predictions = all[:, 7] if self.config.load_predictions else None
             splits = cut_with_trajectory(n=self.cut_in, pcd_path=raw_path, traj_poses=trajectory_poses,
-                                         xyz=all[:, :3], rgb=all[:, 3:6], labels=all[:, -1])
+                                         xyz=all[:, :3], rgb=all[:, 3:6], labels=all[:, 6], predictions=predictions)
 
             splits_len = len(splits)
             # num_cores = multiprocessing.cpu_count() - 4
@@ -181,7 +194,8 @@ class KITTI360Dataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f'processed_mode_{self.mode}_traj_num_classes_{self.n_classes}_{self.config.data_suffix}')  # _h_dense')
+        return osp.join(self.root,
+                        f'processed_mode_{self.mode}_traj_num_classes_{self.n_classes}_{self.config.data_suffix}')  # _h_dense')
 
     def len(self):
         return len(self.processed_file_names)

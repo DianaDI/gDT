@@ -87,10 +87,12 @@ if __name__ == '__main__':
         temp_all_files = sorted(glob(f"{path}*/static/*.ply"))
         h_files = []
         for i in HIGHWAY_SCENES_FILES:
-            h_files.append(os.path.join(path, i))
+            h_files.append(i[-25:])
         for f in temp_all_files:
-            if f not in h_files:
+            if f[-25:] not in h_files:
                 all_files.append(f)
+        print(f'TOTAL NUM OF FILES: {len(temp_all_files)}')
+        print(f'USING ONLY NON_HW FILES: {len(all_files)}')
     else:
         all_files = sorted(glob(f"{path}*/static/*.ply"))
 
