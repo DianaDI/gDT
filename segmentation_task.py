@@ -197,7 +197,6 @@ class SegmentationTask(DLTask):
         # m = ConfusionMatrix(self.config.n_classes)
         for i, data in enumerate(loader):
             step = i + len(loader) * epoch
-            data = data.cpu()
             out = self.model(data)
             out = out.cpu()
             target = torch.squeeze(data.y[:, 0]).type(torch.LongTensor).cpu()
