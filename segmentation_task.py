@@ -192,15 +192,19 @@ class SegmentationTask(DLTask):
     def eval(self, loader, loss_fn=None, load_from_path=None, mode='val', epoch=0, ignored_labels=None):
         if load_from_path:
             self.model.load_state_dict(torch.load(load_from_path)['model_state_dict'])
+        self.model.to(self.device)
         self.model.eval()
         metrics_dict_all, metrics_dict_all_post, iou_classwise_all, iou_classwise_all_post = {}, {}, {}, {}
         # m = ConfusionMatrix(self.config.n_classes)
         for i, data in enumerate(loader):
+            data = data.to(self.device)
             step = i + len(loader) * epoch
             out = self.model(data)
             out = out.cpu()
-            target = torch.squeeze(data.y[:, 0]).type(torch.LongTensor).cpu()
-            pred = data.y[:, 1].cpu().int()  # np.argmax(out, axis=-1)
+            # target = torch.squeeze(data.y[:, 0]).type(torch.LongTensor).cpu()
+            target = torch.squeeze(data.y).type(torch.LongTensor).cpu()
+            # pred = data.y[:, 1].cpu().int()
+            pred = np.argmax(out, axis=-1)
             # road_idxs = np.where(pred == 1)  # 1 - label for road, todo: remove this ugliness:)
 
             # self.draw_pc_with_labels(np.asarray(data.pos), np.asarray(target), window_name="GT")
@@ -220,8 +224,8 @@ class SegmentationTask(DLTask):
             loss = metrics_dict['loss'][0]
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {accuracy:.4f}')
-            self.print_res(iou_classwise, title='Classwise NN results for sample:', classwise=False,
-                           mean_over_nonzero=False)
+            # self.print_res(iou_classwise, title='Classwise NN results for sample:', classwise=False,
+            #                mean_over_nonzero=False)
 
             # mask = ~np.in1d(target, self.ignore_label)
             # cm.count_predicted_batch(ground_truth_vec=target[mask], predicted=pred[mask])
