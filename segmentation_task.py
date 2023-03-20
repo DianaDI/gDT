@@ -271,22 +271,22 @@ class SegmentationTask(DLTask):
                 # if config.verbose and (i + 1) % log_img_every == 0:
 
                 # target_remapped = self.remap_label_for_drawing(data.y.cpu())
-                wandb.log(
-                    {
-                        "val_loss": loss,
-                        "val_acc": accuracy,
-                        "val_iteration": step
-                        # 'eval_inputs': wandb.Object3D(
-                        #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
-                        # 'eval_targets': wandb.Object3D(
-                        #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
-                        # 'eval_predictions': wandb.Object3D(
-                        #     np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
-                        # 'clusters': wandb.Object3D(
-                        #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
-                        # 'eval_accuracy': acc,
-                        # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
-                    })
+            wandb.log(
+                {
+                    "val_loss": loss,
+                    "val_acc": accuracy,
+                    "val_iteration": step
+                    # 'eval_inputs': wandb.Object3D(
+                    #     np.column_stack((np.array(data.pos.cpu()), np.array(data.x.cpu()) * 255))),
+                    # 'eval_targets': wandb.Object3D(
+                    #     np.column_stack((np.array(data.pos.cpu()), target_remapped))),
+                    # 'eval_predictions': wandb.Object3D(
+                    #     np.column_stack((np.array(data.pos.cpu()), pred_remapped)))
+                    # 'clusters': wandb.Object3D(
+                    #     np.column_stack((np.array(xyz_filtered.cpu()), cluster_labels + 1)))
+                    # 'eval_accuracy': acc,
+                    # 'miou_micro': iou_micro, 'miou_weighted': iou_weighted, 'miou_macro': iou_macro
+                })
             # else:
             #     wandb.log({"val_loss": loss,
             #                "val_acc": accuracy,
