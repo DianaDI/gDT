@@ -11,11 +11,33 @@ from init import separated_mode_class_nums, ROOT_DIR
 from data.kitti_helpers import labels
 
 
+def rgb2gray(rgb):
+    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
+    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+    return gray
+
+
+def normalise(input_data):
+    # to (-1, 1) interval
+    data = center(input_data)
+    scale = (1 / np.abs(data).max()) * 0.999999
+    data = data * scale
+    return data
+
+
+def minmax(arr):
+    return (arr - arr.min()) / (arr.max() - arr.min())
+
+
+def center(arr):
+    return arr - arr.mean()
+
+
 def print_ds_stats(paths, train, test, val):
     n = len(paths)
-    print(f"TRAIN SIZE: {len(train)} kitti files ({len(train) / n * 100}%)")
-    print(f"VAL SIZE: {len(val)} kitti files ({len(val) / n * 100}%)")
-    print(f"TEST SIZE: {len(test)} kitti files ({len(test) / n * 100}%)")
+    print(f"TRAIN SIZE: {len(train)} files ({len(train) / n * 100}%)")
+    print(f"VAL SIZE: {len(val)} files ({len(val) / n * 100}%)")
+    print(f"TEST SIZE: {len(test)} files ({len(test) / n * 100}%)")
 
 
 def train_val_test_split(paths, test_size=0.1, seed=42, verbose=True):
