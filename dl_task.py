@@ -32,12 +32,6 @@ class DLTask:
         #print(self.config)
         print("-------------------------")
         print(title)
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        id_name_dict_path = f'{current_dir}/mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
-
-        with open(id_name_dict_path) as f:
-            id_name_dict = json.load(f)
-        id_name_dict = {int(k): v for k, v in id_name_dict.items()}
 
         avgs = []
         for key, value in res_dict.items():
@@ -54,6 +48,11 @@ class DLTask:
                     avgs.append(avg)
                 if avg > 0:
                     if classwise:
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        id_name_dict_path = f'{current_dir}/mode{self.mode}_num_classes{self.num_classes}_res_label_map.json'
+                        with open(id_name_dict_path) as f:
+                            id_name_dict = json.load(f)
+                        id_name_dict = {int(k): v for k, v in id_name_dict.items()}
                         print(f'{id_name_dict[key]}: {avg}')
                     else:
                         print(f'{key}: {avg}')

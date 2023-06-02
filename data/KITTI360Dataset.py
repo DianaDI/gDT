@@ -19,8 +19,8 @@ prediction_load_path = "C:/Users/Diana/Desktop/DATA/Kitti360/kitti_for_dva/kitti
 
 
 class KITTI360Dataset(Dataset):
-    def __init__(self, root, files, num_classes, mode=0, split="train", cut_in=2, transform=None, pre_transform=None,
-                 pre_filter=None, normals=False, eigenvalues=False, ground_points_dir=None, poses_dir=None,
+    def __init__(self, root, files, split="train", transform=None, pre_transform=None,
+                 pre_filter=None, ground_points_dir=None, poses_dir=None,
                  config=None):
         """
 
@@ -36,14 +36,14 @@ class KITTI360Dataset(Dataset):
 
         self.config = config
         self.poses_dir = poses_dir
-        self.cut_in = cut_in
+        self.cut_in = config.cut_in
         self.split = split
-        self.normals = normals
-        self.eigenvalues = eigenvalues
+        self.normals = config.normals
+        self.eigenvalues = config.eigenvalues
         self.files = files
         self.root = root
-        self.mode = mode
-        self.n_classes = num_classes
+        self.mode = config.mode
+        self.n_classes = config.n_classes
         self.ground_points_root = ground_points_dir
         self.class_weights_dict = None
         self.current_dir = os.path.dirname(os.path.abspath(__file__))

@@ -11,20 +11,32 @@ import json
 from torchgeometry.losses import FocalLoss
 
 from model.pointnet2 import PointNet2
-from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
+from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR, \
+    ROOT_PART_OBJECTWISE
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset, HIGHWAY_SCENES_FILES
+from data.NHSamplesDataset import NHSamplesDataset, get_files_by_label
 from data.utils import train_val_test_split, get_ignore_labels, get_train_val_test_split_from_file
 from segmentation_task import SegmentationTask
+from objectwise_segmentation import ObjWSegmentationTask
 from data.transforms import NormalizeFeatureToMeanStd
 
 if __name__ == '__main__':
-    task_name = 'SemSegmentation'  # 'GroundDetection'
+    task_name = 'ObjectwiseSemSeg'  # 'SemSegmentation'  # 'GroundDetection' # 'ObjectwiseSemSeg'
     params = {**COMMON_PARAMS, **MODEL_SPECIFIC_PARAMS[task_name]}
 
-    DatasetClass = KITTI360Dataset if task_name == 'SemSegmentation' else KITTI360DatasetBinary
+    DatasetClass = None
+    if task_name == 'SemSegmentation':
+        DatasetClass = KITTI360Dataset
+    elif task_name == 'GroundDetection':
+        DatasetClass = KITTI360DatasetBinary
+    elif task_name == 'ObjectwiseSemSeg':
+        DatasetClass = NHSamplesDataset
+    else:
+        print("YOU NEED TO SET DATASET CLASS")
+        exit(0)
 
-    wandb.finish()
+    # wandb.finish()
     wandb.init(project=task_name)
     # wandb.init()
 
@@ -37,37 +49,38 @@ if __name__ == '__main__':
     wandb.define_metric("val_acc", step_metric="val_iteration")
 
     cfg = wandb.config
-    cfg.learning_rate = params['lr']
-    cfg.mode = params['mode']
-    cfg.epochs = params['num_epochs']
-    cfg.cut_in = params['cut_in']
-    cfg.subsample_to = params['subsample_to']
-    cfg.seed = params['random_seed']
-    cfg.n_classes = params['num_classes']
-    cfg.verbose = params['verbose']
-    cfg.resume_from = params['resume_from']
-    cfg.resume_from_id = params['resume_from_id']
-    cfg.resume_model_path = params['resume_model_path']
-    cfg.test = params['test']
-    cfg.train = params['val']
-    cfg.val = params['train']
-    cfg.batch_size = params['batch_size']
-    cfg.lr_decay = params['lr_decay']
-    cfg.lr_cosine_step = params['lr_cosine_step']
-    cfg.params_log_file = params['params_log_file']
-    cfg.batch_norm = params['batch_norm']
-    cfg.loss_fn = params['loss_fn']
-    cfg.random_id = params['random_id']
-    cfg.normals = params['normals']
-    cfg.eigenvalues = params['eigenvalues']
-    cfg.ignore_labels = params['ignore_labels']
-    cfg.save_every = params['save_every']
-    cfg.highway_files = params['highway_files']
-    cfg.non_highway_files = params['non_highway_files']
-    cfg.data_suffix = params['data_suffix']
-    cfg.use_val_list = params['use_val_list']
-    cfg.val_list_path = params['val_list_path']
-    cfg.load_predictions = params['load_predictions']
+    cfg.learning_rate = params.get('lr')
+    cfg.mode = params.get('mode')
+    cfg.epochs = params.get('num_epochs')
+    cfg.cut_in = params.get('cut_in')
+    cfg.subsample_to = params.get('subsample_to')
+    cfg.seed = params.get('random_seed')
+    cfg.n_classes = params.get('num_classes')
+    cfg.verbose = params.get('verbose')
+    cfg.resume_from = params.get('resume_from')
+    cfg.resume_from_id = params.get('resume_from_id')
+    cfg.resume_model_path = params.get('resume_model_path')
+    cfg.test = params.get('test')
+    cfg.train = params.get('val')
+    cfg.val = params.get('train')
+    cfg.batch_size = params.get('batch_size')
+    cfg.lr_decay = params.get('lr_decay')
+    cfg.lr_cosine_step = params.get('lr_cosine_step')
+    cfg.params_log_file = params.get('params_log_file')
+    cfg.batch_norm = params.get('batch_norm')
+    cfg.loss_fn = params.get('loss_fn')
+    cfg.random_id = params.get('random_id')
+    cfg.normals = params.get('normals')
+    cfg.eigenvalues = params.get('eigenvalues')
+    cfg.ignore_labels = params.get('ignore_labels')
+    cfg.save_every = params.get('save_every')
+    cfg.highway_files = params.get('highway_files')
+    cfg.non_highway_files = params.get('non_highway_files')
+    cfg.data_suffix = params.get('data_suffix')
+    cfg.use_val_list = params.get('use_val_list')
+    cfg.val_list_path = params.get('val_list_path')
+    cfg.load_predictions = params.get('load_predictions')
+    cfg.label = params.get('label')
 
     if task_name == 'SemSegmentation':
         cfg.eval_clustering = params['eval_clustering']
@@ -77,7 +90,7 @@ if __name__ == '__main__':
     torch.manual_seed(cfg.seed)
     torch.cuda.manual_seed(cfg.seed)
 
-    path = TRAIN_PATH
+    path = ROOT_PART_OBJECTWISE if task_name == 'ObjectwiseSemSeg' else TRAIN_PATH
     all_files = []
     if cfg.highway_files:
         print("TRAINING WITH HIGHWAY FILES ONLY")
@@ -94,7 +107,8 @@ if __name__ == '__main__':
         print(f'TOTAL NUM OF FILES: {len(temp_all_files)}')
         print(f'USING ONLY NON_HW FILES: {len(all_files)}')
     else:
-        all_files = sorted(glob(f"{path}*/static/*.ply"))
+        all_files = get_files_by_label(path, cfg.label) if task_name == 'ObjectwiseSemSeg' else sorted(
+            glob(f"{path}*/static/*.ply"))
 
     if cfg.use_val_list:
         train_files, test_files, val_files = get_train_val_test_split_from_file(split_path=cfg.val_list_path,
@@ -115,28 +129,27 @@ if __name__ == '__main__':
 
     transform = T.Compose(transforms)
     pre_transform = T.Compose([T.FixedPoints(cfg.subsample_to, replace=False),
-                               T.NormalizeScale(),
-                               NormalizeFeatureToMeanStd()
+                               T.NormalizeScale()
+                               # NormalizeFeatureToMeanStd()
                                ])
 
-    print(f'MODE: {cfg.mode}')
+    # print(f'MODE: {cfg.mode}')
 
-    train_dataset = DatasetClass(path, split="train", num_classes=cfg.n_classes, mode=cfg.mode,
-                                 cut_in=cfg.cut_in, normals=cfg.normals, eigenvalues=cfg.eigenvalues,
-                                 files=train_files, transform=transform, pre_transform=pre_transform,
-                                 ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR, config=cfg)
-    val_dataset = DatasetClass(path, num_classes=cfg.n_classes, split="val", mode=cfg.mode,
-                               cut_in=cfg.cut_in, normals=cfg.normals, eigenvalues=cfg.eigenvalues,
-                               files=val_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
-                               poses_dir=POSES_DIR, config=cfg)
-    test_dataset = DatasetClass(path, num_classes=cfg.n_classes, split="test", mode=cfg.mode,
-                                cut_in=cfg.cut_in, normals=cfg.normals, eigenvalues=cfg.eigenvalues,
-                                files=test_files, pre_transform=pre_transform, ground_points_dir=GROUND_SEP_ROOT,
-                                poses_dir=POSES_DIR, config=cfg)
+    train_dataset = DatasetClass(root=path, split="train", config=cfg,
+                                 files=train_files, transform=transform, pre_transform=pre_transform)
+    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+
+    val_dataset = DatasetClass(root=path, split="val", config=cfg,
+                               files=val_files, pre_transform=pre_transform)
+    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+
+    test_dataset = DatasetClass(root=path, split="test", config=cfg,
+                                files=test_files, pre_transform=pre_transform)
+    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=params['num_workers'])
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=params['num_workers'])
-    test_loader = DataLoader(test_dataset, batch_size=cfg.batch_size, shuffle=False,
-                             num_workers=params['num_workers'])
+    test_loader = DataLoader(test_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=params['num_workers'])
 
     cuda_available = torch.cuda.is_available()
     print(f"CUDA AVAILABLE: {cuda_available}")
@@ -173,9 +186,10 @@ if __name__ == '__main__':
         with open(f'{save_dir}/{cfg.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 
-    dl_task = SegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler, mode=cfg.mode,
-                               num_classes=cfg.n_classes,
-                               model_save_dir=save_dir, optimizer=optimizer, config=cfg)
+    # todo convert labels to 0 1 in dataset creation
+    dl_task = ObjWSegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler, mode=cfg.mode,
+                                   num_classes=cfg.n_classes,
+                                   model_save_dir=save_dir, optimizer=optimizer, config=cfg)
     wandb.watch(dl_task.model)
 
     ignored_labels = get_ignore_labels(mode=cfg.mode) if cfg.ignore_labels else None
@@ -209,5 +223,5 @@ if __name__ == '__main__':
         metrics_dict, extra_metrics = dl_task.eval(loader=test_loader, loss_fn=loss_fn, load_from_path=load_from_path,
                                                    mode='eval')
         print(f'MEAN_ACCURACY: {np.mean(metrics_dict["accuracy"])}')
-        dl_task.print_res(metrics_dict, 'ALL METRICS (no clustering)', print_overall_mean=False,
+        dl_task.print_res(metrics_dict, 'ALL METRICS', print_overall_mean=False,
                           mean_over_nonzero=False)
