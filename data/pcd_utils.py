@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.metrics import jaccard_score
 
+from data.utils import rgb2gray, minmax, center
+
 
 def get_accuracy(out, target):
     correct_nodes = out.argmax(dim=1).eq(target).sum().item()  # out.eq(target).sum().item()  #  todo fix this
@@ -29,7 +31,7 @@ def compute_metrics(target, out, pred, loss_fn=None, mode="val"):
     iou_classwise = defaultdict(list)
 
     loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
-                                                                target.unsqueeze(0).unsqueeze(1))
+                                                               target.unsqueeze(0).unsqueeze(1))
     metrics_dict['loss'].append(loss)
     acc = get_accuracy(out, target)
     metrics_dict['accuracy'].append(acc)
@@ -136,12 +138,6 @@ def count_class_labels():
         json.dump(counts, fp)
 
 
-def rgb2gray(rgb):
-    r, g, b = rgb[:, 0], rgb[:, 1], rgb[:, 2]
-    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
-    return gray
-
-
 def change_background_to_black(vis):
     opt = vis.get_render_option()
     opt.background_color = np.asarray([0.5, 0.5, 0.5])
@@ -162,14 +158,6 @@ def torchdata2o3dpcd(data, colors=True, visualise=True, gray=False):
         key_to_callback[ord("K")] = change_background_to_black
         o3d.visualization.draw_geometries_with_key_callbacks([pcd], key_to_callback)
     return pcd
-
-
-def minmax(arr):
-    return (arr - arr.min()) / (arr.max() - arr.min())
-
-
-def center(arr):
-    return arr - arr.mean()
 
 
 def dbscan_cluster_sklearn(xyz=None, rgb=None, eps=0.014, min_points=20):
@@ -239,14 +227,10 @@ def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, c
                                                               # 0.07 for 50k density on 10 cuts, 0.04 - for 100k on 10 cuts
                                                               cluster_on_grey=cluster_on_grey,
                                                               cluster_on_xyz=cluster_on_xyz)
-
-    markings = list()
-    roads = list()
-    meshes = list()
+    markings, roads, meshes = list(), list(), list()
 
     if do_pca:
         pca = PCA(n_components=2)
-
         clusters.remove(0)  # remove noise cluster
         cluster_labels_and_size_dict = dict()
         for c in clusters:
@@ -279,20 +263,20 @@ def cluster_with_intensities_road_surfaces(pcd, visualise=False, do_pca=False, c
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz[cluster_idx])
         pcd.normals = o3d.utility.Vector3dVector(normals[cluster_idx])
-        # if use_true_colors:
-        pcd.colors = o3d.utility.Vector3dVector(colors[cluster_idx])
-        # else:
-        #     pcd.paint_uniform_color([0.5, 0.5, 0.5])
+        if use_true_colors:
+            pcd.colors = o3d.utility.Vector3dVector(colors[cluster_idx])
+        else:
+            pcd.paint_uniform_color([0.5, 0.5, 0.5])
         roads.append(pcd)
 
         cluster_idx = np.where(labels == list(cluster_labels_and_size_dict)[1])
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(xyz[cluster_idx])
         pcd.normals = o3d.utility.Vector3dVector(normals[cluster_idx])
-        # if use_true_colors:
-        pcd.colors = o3d.utility.Vector3dVector(colors[cluster_idx])
-        # else:
-        #     pcd.paint_uniform_color([0.5, 0.5, 0.5])
+        if use_true_colors:
+            pcd.colors = o3d.utility.Vector3dVector(colors[cluster_idx])
+        else:
+            pcd.paint_uniform_color([0.5, 0.5, 0.5])
         roads.append(pcd)
 
         if visualise:
@@ -377,17 +361,18 @@ def cluster_with_intensities_above_road(pcd, pred=None, target=None, visualise=F
 
         # pred_remapped = self.remap_label_for_drawing(new_pred_after_clustering)
 
-    metrics_dict_c, iou_classwise_c = compute_metrics(target, out=new_pred_after_clustering, pred=new_pred_after_clustering,
-                                                               mode='eval')
+    metrics_dict_c, iou_classwise_c = compute_metrics(target, out=new_pred_after_clustering,
+                                                      pred=new_pred_after_clustering,
+                                                      mode='eval')
 
-        # for pc in tqdm(polelikes):
-        #     mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd=pc, depth=8)
-        #     bbox = pc.get_oriented_bounding_box()
-        #     mesh = mesh.crop(bbox)
-        #     meshes.append(mesh)
-        #
-        # if visualise:
-        #     o3d.visualization.draw_geometries(meshes, mesh_show_back_face=True, width=1200, height=1000)
+    # for pc in tqdm(polelikes):
+    #     mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd=pc, depth=8)
+    #     bbox = pc.get_oriented_bounding_box()
+    #     mesh = mesh.crop(bbox)
+    #     meshes.append(mesh)
+    #
+    # if visualise:
+    #     o3d.visualization.draw_geometries(meshes, mesh_show_back_face=True, width=1200, height=1000)
 
     return metrics_dict_c, iou_classwise_c
 
@@ -397,7 +382,8 @@ def cluster_with_intensities(pcd, mode, pred=None, target=None, visualise=False,
         return cluster_with_intensities_road_surfaces(pcd, visualise, do_pca, cluster_on_grey=True, cluster_on_xyz=True,
                                                       use_true_colors=False)
     elif mode == 2:
-        return cluster_with_intensities_above_road(pcd=pcd, visualise=visualise, do_pca=do_pca, pred=pred, target=target,
+        return cluster_with_intensities_above_road(pcd=pcd, visualise=visualise, do_pca=do_pca, pred=pred,
+                                                   target=target,
                                                    cluster_on_grey=False, cluster_on_xyz=True)
     else:
         print("NOT IMPLEMENTED")

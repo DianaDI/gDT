@@ -5,18 +5,19 @@ from data.kitti_helpers import ground_label_ids
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 linux = False
-TRAIN_PATH = "/rds/user/dd593/hpc-work/data_3d_semantics/train/" if linux else "C:/Users/Diana/Desktop/DATA/Kitti360/kitti_for_dva/kitti360mm/raw/data_3d_semantics/" # "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
+TRAIN_PATH = "/rds/user/dd593/hpc-work/data_3d_semantics/train/" if linux else "C:/Users/Diana/Desktop/DATA/Kitti360/kitti_for_dva/kitti360mm/raw/data_3d_semantics/"  # "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train/"
 GROUND_SEP_ROOT = "/rds/user/dd593/hpc-work/inliers_traj_0.6/" if linux else "C:/Users/Diana/Desktop/DATA/Kitti360/data_3d_semantics/train_processed/inliers_traj_0.6"
 POSES_DIR = "/rds/user/dd593/hpc-work/data_poses/" if linux else "C:/Users/Diana/Desktop/DATA/Kitti360/data_poses"
 
-ROOT_PART_OBJECTWISE = "C:/Users/Diana/Desktop/DATA/NH_dataset/cut_objects/"
+# ROOT_PART_OBJECTWISE = "C:/Users/Diana/Desktop/DATA/NH_dataset/cut_objects6/"
 
 random_id = random.randint(0, 1000)
 
-mode = 2
-epoch = 15
+mode = 0
 
 COMMON_PARAMS = {
+    'data_path': "C:/Users/Diana/Desktop/DATA/Kitti360/BBsv2/",
+    # "C:/Users/Diana/Desktop/DATA/NH_dataset/cut_objects7/",
     'train': True,
     'val': True,
     'test': True,
@@ -24,21 +25,20 @@ COMMON_PARAMS = {
     'highway_files': False,
     'non_highway_files': False,
     'normalise': True,
-    'random_seed': 402,
+    'random_seed': 42,
     'num_workers': 0,  # set number of cpu cores for data processing
     'plot_sample': True,
     'test_size': 0.1,
-    'save_every': 5,
+    'save_every': 10,
     'verbose': True,
     'normals': False,
     'eigenvalues': False,
     'random_id': random_id,
     'resume_from': 0,
     'resume_from_id': 0,
-    #'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_322/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
-    # 'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSegmentation_155/epoch_mode_{mode}_{epoch}_model.pth" # data processed_mode_1_traj_num_classes_6_prev
-    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/SemSeg539/epoch_mode_{mode}_{epoch}_model.pth", # data processed_mode_1_traj_num_classes_6_prev
-    'use_val_list': False, # if false, random split with seed is used
+    'resume_model_path': f"C:/Users/Diana/PycharmProjects/pcdseg/runs/ObjectwiseSemSeg_92/epoch_mode_None_370_model.pth",
+    # data processed_mode_1_traj_num_classes_6_prev
+    'use_val_list': False,  # if false, random split with seed is used
     'val_list_path': "C:/Users/Diana/Desktop/DATA/Kitti360/kitti_for_dva/kitti360mm/raw/data_3d_semantics/2013_05_28_drive_val_reduced.txt"
 }
 
@@ -88,20 +88,20 @@ MODEL_SPECIFIC_PARAMS = {
         'load_predictions': False
     },
     'ObjectwiseSemSeg': {
-        'label': 6,
-        'lr': 0.001,
+        'label': 13,  # 0, 6, 11 - for NH
+        'lr': 0.005,
         'lr_decay': 0,
-        'lr_cosine_step': 0,  # if 0 - no scheduler applied
+        'lr_cosine_step': 10,  # if 0 - no scheduler applied
         'num_classes': 2,
         'batch_size': 4,
-        'num_epochs': 2000,
-        'subsample_to': 100000,
+        'num_epochs': 1000,
+        'subsample_to': 50000,
         'rand_translate': 0.01,
         'rand_rotation_x': 10,
         'rand_rotation_y': 10,
         'rand_rotation_z': 10,
         'params_log_file': "params.json",
         'batch_norm': True,
-        'loss_fn': 'nll',  # options: nll, focal
+        'loss_fn': 'focal',  # options: nll, focal
     }
 }

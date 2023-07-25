@@ -48,7 +48,7 @@ class NHSamplesDataset(Dataset):
     def proc_sample(self, pc_file, label_file, idx):
         pcd = o3d.io.read_point_cloud(pc_file)
         XYZ = torch.from_numpy(np.asarray(pcd.points))
-        RGB = torch.from_numpy(np.asarray(pcd.colors) / 255)
+        RGB = torch.from_numpy(np.asarray(pcd.colors))
         label = torch.from_numpy(self.label2binary(arr=np.load(label_file, allow_pickle=True), label=self.config.label))
 
         data = Data(pos=XYZ, x=RGB, y=label)
@@ -86,7 +86,7 @@ class NHSamplesDataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f'{self.config.label}_processed')
+        return osp.join(self.root, f'{self.config.label}_processed2')
 
     def len(self):
         return len(self.processed_file_names)

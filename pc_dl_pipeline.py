@@ -11,8 +11,7 @@ import json
 from torchgeometry.losses import FocalLoss
 
 from model.pointnet2 import PointNet2
-from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, TRAIN_PATH, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR, \
-    ROOT_PART_OBJECTWISE
+from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset, HIGHWAY_SCENES_FILES
 from data.NHSamplesDataset import NHSamplesDataset, get_files_by_label
@@ -81,6 +80,7 @@ if __name__ == '__main__':
     cfg.val_list_path = params.get('val_list_path')
     cfg.load_predictions = params.get('load_predictions')
     cfg.label = params.get('label')
+    cfg.data_path = params.get('data_path')
 
     if task_name == 'SemSegmentation':
         cfg.eval_clustering = params['eval_clustering']
@@ -90,14 +90,13 @@ if __name__ == '__main__':
     torch.manual_seed(cfg.seed)
     torch.cuda.manual_seed(cfg.seed)
 
-    path = ROOT_PART_OBJECTWISE if task_name == 'ObjectwiseSemSeg' else TRAIN_PATH
     all_files = []
     if cfg.highway_files:
         print("TRAINING WITH HIGHWAY FILES ONLY")
         for i in HIGHWAY_SCENES_FILES:
-            all_files.append(os.path.join(path, i))
+            all_files.append(os.path.join(cfg.data_path, i))
     elif cfg.non_highway_files:
-        temp_all_files = sorted(glob(f"{path}*/static/*.ply"))
+        temp_all_files = sorted(glob(f"{cfg.data_path}*/static/*.ply"))
         h_files = []
         for i in HIGHWAY_SCENES_FILES:
             h_files.append(i[-25:])
@@ -107,12 +106,12 @@ if __name__ == '__main__':
         print(f'TOTAL NUM OF FILES: {len(temp_all_files)}')
         print(f'USING ONLY NON_HW FILES: {len(all_files)}')
     else:
-        all_files = get_files_by_label(path, cfg.label) if task_name == 'ObjectwiseSemSeg' else sorted(
-            glob(f"{path}*/static/*.ply"))
+        all_files = get_files_by_label(cfg.data_path, cfg.label) if task_name == 'ObjectwiseSemSeg' else sorted(
+            glob(f"{cfg.data_path}*/static/*.ply"))
 
     if cfg.use_val_list:
         train_files, test_files, val_files = get_train_val_test_split_from_file(split_path=cfg.val_list_path,
-                                                                                data_root_path=path,
+                                                                                data_root_path=cfg.data_path,
                                                                                 all_files=all_files, seed=cfg.seed)
     else:
         train_files, test_files, val_files = train_val_test_split(all_files, seed=cfg.seed)
@@ -135,15 +134,15 @@ if __name__ == '__main__':
 
     # print(f'MODE: {cfg.mode}')
 
-    train_dataset = DatasetClass(root=path, split="train", config=cfg,
+    train_dataset = DatasetClass(root=cfg.data_path, split="train", config=cfg,
                                  files=train_files, transform=transform, pre_transform=pre_transform)
     # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
 
-    val_dataset = DatasetClass(root=path, split="val", config=cfg,
+    val_dataset = DatasetClass(root=cfg.data_path, split="val", config=cfg,
                                files=val_files, pre_transform=pre_transform)
     # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
 
-    test_dataset = DatasetClass(root=path, split="test", config=cfg,
+    test_dataset = DatasetClass(root=cfg.data_path, split="test", config=cfg,
                                 files=test_files, pre_transform=pre_transform)
     # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
 
