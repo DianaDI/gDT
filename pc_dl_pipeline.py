@@ -1,3 +1,5 @@
+import datetime
+
 import wandb
 import numpy as np
 import os
@@ -9,9 +11,10 @@ from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, CosineAnnealingLR
 import json
 from torchgeometry.losses import FocalLoss
+import datetime
 
 from model.pointnet2 import PointNet2
-from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR
+from init import COMMON_PARAMS, MODEL_SPECIFIC_PARAMS, ROOT_DIR, GROUND_SEP_ROOT, POSES_DIR, TASK_NAME
 from data.KITTI360DatasetBinary import KITTI360DatasetBinary
 from data.KITTI360Dataset import KITTI360Dataset, HIGHWAY_SCENES_FILES
 from data.NHSamplesDataset import NHSamplesDataset, get_files_by_label
@@ -21,7 +24,7 @@ from objectwise_segmentation import ObjWSegmentationTask
 from data.transforms import NormalizeFeatureToMeanStd
 
 if __name__ == '__main__':
-    task_name = 'ObjectwiseSemSeg'  # 'SemSegmentation'  # 'GroundDetection' # 'ObjectwiseSemSeg'
+    task_name = TASK_NAME
     params = {**COMMON_PARAMS, **MODEL_SPECIFIC_PARAMS[task_name]}
 
     DatasetClass = None
@@ -35,9 +38,7 @@ if __name__ == '__main__':
         print("YOU NEED TO SET DATASET CLASS")
         exit(0)
 
-    # wandb.finish()
     wandb.init(project=task_name)
-    # wandb.init()
 
     wandb.define_metric("train_iteration")
     wandb.define_metric("val_iteration")
@@ -68,7 +69,6 @@ if __name__ == '__main__':
     cfg.params_log_file = params.get('params_log_file')
     cfg.batch_norm = params.get('batch_norm')
     cfg.loss_fn = params.get('loss_fn')
-    cfg.random_id = params.get('random_id')
     cfg.normals = params.get('normals')
     cfg.eigenvalues = params.get('eigenvalues')
     cfg.ignore_labels = params.get('ignore_labels')
@@ -116,9 +116,8 @@ if __name__ == '__main__':
     else:
         train_files, test_files, val_files = train_val_test_split(all_files, seed=cfg.seed)
 
+
     transforms = []
-    if params['rand_translate'] > 0:
-        transforms.append(T.RandomJitter(params['rand_translate']))
     if params['rand_rotation_x'] > 0:
         transforms.append(T.RandomRotate(params['rand_rotation_x'], axis=0))
     if params['rand_rotation_y'] > 0:
@@ -132,19 +131,34 @@ if __name__ == '__main__':
                                # NormalizeFeatureToMeanStd()
                                ])
 
-    # print(f'MODE: {cfg.mode}')
+    print(f'MODE: {cfg.mode}')
 
     train_dataset = DatasetClass(root=cfg.data_path, split="train", config=cfg,
-                                 files=train_files, transform=transform, pre_transform=pre_transform)
-    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+                                 files=train_files, transform=transform,
+                                 pre_transform=pre_transform) if task_name == 'ObjectwiseSemSeg' else \
+                    DatasetClass(
+                        root=cfg.data_path, split="train", config=cfg,
+                        files=train_files, transform=transform, pre_transform=pre_transform,
+                        ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
 
     val_dataset = DatasetClass(root=cfg.data_path, split="val", config=cfg,
-                               files=val_files, pre_transform=pre_transform)
-    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+                               files=val_files,
+                               pre_transform=pre_transform) if task_name == 'ObjectwiseSemSeg' else \
+                DatasetClass(
+                    root=cfg.data_path, split="val", config=cfg,
+                    files=val_files, pre_transform=pre_transform,
+                    ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
 
     test_dataset = DatasetClass(root=cfg.data_path, split="test", config=cfg,
-                                files=test_files, pre_transform=pre_transform)
-    # ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+                                files=test_files,
+                                pre_transform=pre_transform) if task_name == 'ObjectwiseSemSeg' else \
+                    DatasetClass(
+                    root=cfg.data_path, split="test", config=cfg,
+                    files=test_files, pre_transform=pre_transform,
+                    ground_points_dir=GROUND_SEP_ROOT, poses_dir=POSES_DIR)
+    print("TEST FILES:")
+    print(test_files)
+    print("=============")
 
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=params['num_workers'])
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=params['num_workers'])
@@ -175,8 +189,9 @@ if __name__ == '__main__':
                         reduction='mean') if cfg.loss_fn == 'focal' else None  # default nll defined inside methods
     save_dir = None
     if cfg.resume_from == 0 and cfg.train:
-        rand_num = cfg.random_id
-        save_dir = f'{ROOT_DIR}/runs/{task_name}_{rand_num}'
+        dt = datetime.datetime.now()
+        datetmstp = f'{dt.year}{dt.month}{dt.day}_{dt.hour}{dt.minute}'
+        save_dir = f'{ROOT_DIR}/runs/{task_name}{datetmstp}'
         if not os.path.isdir(save_dir):
             os.mkdir(save_dir)
             print(f'Save folder created: {os.path.isdir(save_dir)}')
@@ -185,7 +200,6 @@ if __name__ == '__main__':
         with open(f'{save_dir}/{cfg.params_log_file}', 'w') as fp:
             json.dump(params, fp, indent=2)
 
-    # todo convert labels to 0 1 in dataset creation
     dl_task = ObjWSegmentationTask(name=task_name, device=device, model=model, scheduler=scheduler, mode=cfg.mode,
                                    num_classes=cfg.n_classes,
                                    model_save_dir=save_dir, optimizer=optimizer, config=cfg)

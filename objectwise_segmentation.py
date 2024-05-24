@@ -5,7 +5,7 @@ import numpy as np
 from torchgeometry.losses import FocalLoss
 
 from dl_task import DLTask
-from data.pcd_utils import get_accuracy, compute_metrics
+from data.pcd_utils import get_accuracy, compute_metrics, draw_pc_with_labels, get_as_pc
 
 
 class ObjWSegmentationTask(DLTask):
@@ -18,6 +18,9 @@ class ObjWSegmentationTask(DLTask):
             self.optimizer.zero_grad()
             out = self.model(data)
             target = torch.squeeze(data.y).type(torch.LongTensor).to(self.device)
+            # draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(target.cpu()), num_clusters=2, title="GT")
+            #draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(np.argmax(out.cpu().detach().numpy(), axis=-1)), num_clusters=2, title="Prediction")
+
             if ignored_labels is None:
                 loss = F.nll_loss(out, target) if not loss_fn else loss_fn(out.t().unsqueeze(0).unsqueeze(2),
                                                                            target.unsqueeze(0).unsqueeze(1))
@@ -45,7 +48,7 @@ class ObjWSegmentationTask(DLTask):
                 'epoch': epoch,
                 'model_state_dict': self.model.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict()},
-                f'{self.model_save_dir}/epoch_mode_{self.config.mode}_{epoch + 1}_model.pth')
+                f'{self.model_save_dir}/epoch_{epoch}.pth')
         if self.scheduler:
             self.scheduler.step()
         return np.mean(losses)
@@ -65,8 +68,6 @@ class ObjWSegmentationTask(DLTask):
             target = torch.squeeze(data.y).type(torch.LongTensor).cpu()
             pred = np.argmax(out, axis=-1)
 
-            # draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(target.cpu()), num_clusters=2, title="GT")
-            # draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(pred), num_clusters=2, title="Prediction")
 
             metrics_dict, iou_classwise = compute_metrics(target=target, out=out, pred=pred,
                                                           loss_fn=loss_fn, mode=mode)
@@ -80,6 +81,10 @@ class ObjWSegmentationTask(DLTask):
             loss = metrics_dict['loss'][0]
             print(f'[{i + 1}/{len(loader)}]'
                   f'Eval Acc: {accuracy:.4f}')
+            if accuracy > 0.90:
+                draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(pred), num_clusters=2, title="Prediction")
+                get_as_pc(np.asarray(data.pos.cpu()), colors=np.asarray(data.x[:, :3].cpu()), visualise=True)
+                draw_pc_with_labels(np.asarray(data.pos.cpu()), np.asarray(target.cpu()), num_clusters=2, title="GT")
 
             wandb.log(
                 {

@@ -174,6 +174,7 @@ class KITTI360Dataset(Dataset):
                 prediction_file = prediction_load_path + folder_id + "_" + file_name + ".npy"
                 predictions = np.load(prediction_file, allow_pickle=True)
 
+            print(raw_path)
             XYZ, RGB, label = read_fields(raw_path)
             all = np.column_stack((XYZ, RGB, label, predictions)) if self.config.load_predictions else np.column_stack((XYZ, RGB, label))
             all = self.pre_process(self.mode, all, raw_path)
@@ -189,6 +190,7 @@ class KITTI360Dataset(Dataset):
             # Parallel(n_jobs=num_cores)(
             #     delayed(self.proc_sample)(splits, i, splits_len, raw_path_idx) for i in range(splits_len))
             for i in range(splits_len):
+                print(idx)
                 self.proc_sample(splits[i], idx)
                 idx += 1
 

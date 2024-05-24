@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 from torchgeometry.losses import FocalLoss
 
 from dl_task import DLTask
-from metrics.confusion_matrix import ConfusionMatrix
 from data.pcd_utils import torchdata2o3dpcd, cluster_with_intensities, draw_pc_with_labels, minmax, rgb2gray, center, \
     dbscan_cluster_sklearn, get_accuracy, compute_metrics, normalise_to_main_color
 

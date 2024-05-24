@@ -85,7 +85,7 @@ def test(loader):
 
 
 if __name__ == '__main__':
-    path = osp.join(osp.dirname(osp.realpath(__file__)), '..',
+    path = osp.join(osp.dirname(osp.realpath(__file__)), '../..',
                     'data/ModelNet10')
     pre_transform, transform = T.NormalizeScale(), T.SamplePoints(1024)
     train_dataset = ModelNet(path, '10', True, transform, pre_transform)

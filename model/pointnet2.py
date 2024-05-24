@@ -1,6 +1,9 @@
 from torch_geometric.nn import MLP, knn_interpolate
 import torch
-from pointnet2_classification import GlobalSAModule, SAModule
+from model.pointnet2_classification import GlobalSAModule, SAModule
+
+
+# this code is taken torch geometric library repository
 
 
 class FPModule(torch.nn.Module):

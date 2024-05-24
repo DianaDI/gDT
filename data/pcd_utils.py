@@ -8,7 +8,6 @@ from os.path import basename
 import open3d as o3d
 from sklearn.cluster import DBSCAN
 import torch.nn.functional as F
-import copy
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.metrics import jaccard_score
@@ -25,6 +24,11 @@ def get_nearest_point(node, nodes):
     dist_2 = np.sum((nodes - node) ** 2, axis=1)
     return np.argmin(dist_2)
 
+
+def rotate_view(vis):
+    ctr = vis.get_view_control()
+    ctr.rotate(5.0, 0.0)
+    return False
 
 def compute_metrics(target, out, pred, loss_fn=None, mode="val"):
     metrics_dict = defaultdict(list)
@@ -174,14 +178,14 @@ def dbscan_cluster_sklearn(xyz=None, rgb=None, eps=0.014, min_points=20):
 
 
 def draw_pc_with_labels(xyz, labels, num_clusters, title=""):
-    colors = plt.cm.get_cmap("jet")(labels / max(labels)) if num_clusters > 20 else plt.cm.get_cmap("tab20")(
-        labels % 20)
+    colors = plt.cm.get_cmap("tab10")(labels / 10)
 
     pcd = o3d.geometry.PointCloud()
     pcd.colors = o3d.utility.Vector3dVector(colors[:, :3])
     pcd.points = o3d.utility.Vector3dVector(xyz)
 
     o3d.visualization.draw_geometries([pcd], width=1200, height=1000, window_name=title)
+    o3d.visualization.draw_geometries_with_animation_callback([pcd], rotate_view)
 
 
 def prep_and_cluster(pcd, eps, min_points=20, visualise=False, cluster_on_grey=True, cluster_on_xyz=True):
@@ -393,3 +397,17 @@ def normalise_to_main_color(rgb):
     rgb = rgb / np.asarray(rgb.max(dim=1).values)[:, None]
     # rgb = rgb / np.asarray(rgb.sum(dim=1))[:, None]
     return rgb
+
+
+def get_as_pc(xyz, colors=None, uniform_color=False, visualise=False):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(xyz)
+    if colors is not None:
+        if uniform_color:
+            pcd.paint_uniform_color(colors)
+        else:
+            pcd.colors = o3d.utility.Vector3dVector(colors)
+    if visualise:
+        o3d.visualization.draw_geometries([pcd])
+        o3d.visualization.draw_geometries_with_animation_callback([pcd], rotate_view)
+    return pcd

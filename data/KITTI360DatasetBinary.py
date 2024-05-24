@@ -4,11 +4,7 @@ from glob import glob
 import numpy as np
 import torch
 from torch_geometric.data import Data, Dataset
-from plyfile import PlyData
-from os.path import basename
 from tqdm import tqdm
-import open3d as o3d
-import json
 
 from data.kitti_helpers import label_names, id2name, ground_label_ids, all_label_ids
 from data.pcd_utils import read_fields, cut_boxes
