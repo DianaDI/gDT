@@ -22,7 +22,7 @@ This repo code assumes that ground is already separated and partitioned for cont
 
 ### How to use:
 1. Clone the repository
-2. Install the required packages (requirements.txt will be available soon)
+2. Install the required packages using ``pip install -r requirements.txt``, but before that install torch related libs yourself following their guidelines depending on your system and cuda version. I left torch libs in requirements.txt for reference of versions
 3. Configure the parameters in the config file ``init.py``
 4. Run the main file ``pc_dl_pipeline.py``
 
@@ -33,3 +33,31 @@ See different repository (to be available soon).
 
 Examples on Digital Roads dataset:
 ![img.png](resources/img4.png)
+
+Please create GitHub issues for any questions or suggestions.
+
+## Pretrained models 
+Will be available soon.
+
+## Citation
+
+Please cite these papers if you use this code in your research:
+
+``` 
+@incollection{davletshina2023using,
+  title={Using Road Design Priors to Improve Large-Scale 3D Road Scene Segmentation},
+  author={Davletshina, Diana and Brilakis, Ioannis},
+  booktitle={Computing in Civil Engineering 2023},
+  pages={9--16},
+  year={2023}
+}
+```
+
+```
+@article{davletshina4767693automating,
+  title={Automating Construction of Road Geometric Digital Twins Using Context and Location Aware Segmentation},
+  author={Davletshina, Diana and Reja, Varun Kumar and Brilakis, Ioannis},
+  journal={Available at SSRN 4767693}
+}
+
+```
