@@ -69,7 +69,7 @@ This repo code assumes that ground is already separated and partitioned for cont
 The code supports KITTI360 and Digital Roads datasets.
 
 ## Part 2. Meshing pipeline 
-See different repository (to be available soon).
+See different repository ([point_cloud_utils](https://github.com/DianaDI/point_cloud_utils)).
 
 Examples on Digital Roads dataset:
 ![img.png](resources/img4.png)
